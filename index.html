@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PRISON ESCAPE - THE SILENT WALL -</title>
+    <style>
+        :root {
+            --prison-gray: #2c2c2e;
+            --dirty-wall: #4a4a48;
+            --accent-red: #ff3b30;
+            --led-green: #4cd964;
+        }
+
+        body {
+            margin: 0; padding: 0; background: #000;
+            font-family: 'Courier New', Courier, monospace;
+            color: #eee; overflow: hidden; user-select: none;
+        }
+
+        /* ゲーム画面全体 */
+        #game-view {
+            width: 100vw; height: 100vh;
+            max-width: 500px; margin: 0 auto;
+            display: flex; flex-direction: column;
+            position: relative; border-left: 2px solid #333; border-right: 2px solid #333;
+        }
+
+        /* 背景レイヤー */
+        #scene {
+            flex: 1; position: relative;
+            background: linear-gradient(to bottom, #333, #111);
+            overflow: hidden;
+        }
+
+        /* 独房のビジュアル（CSS & SVG） */
+        .wall { position: absolute; inset: 0; background: var(--dirty-wall); opacity: 0.6; }
+        .cracks { position: absolute; top: 30%; left: 20%; width: 50px; height: 50px; cursor: pointer; }
+        
+        /* インベントリ */
+        #inventory {
+            height: 90px; background: #111;
+            display: flex; gap: 10px; padding: 10px;
+            border-top: 2px solid #444; overflow-x: auto;
+        }
+        .slot {
+            min-width: 70px; height: 70px; background: #222;
+            border: 2px solid #555; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; text-align: center; cursor: pointer;
+        }
+        .slot.selected { border-color: var(--led-green); box-shadow: 0 0 10px var(--led-green); }
+
+        /* メッセージエリア */
+        #msg {
+            position: absolute; bottom: 100px; left: 10px; right: 10px;
+            background: rgba(0,0,0,0.85); padding: 15px; border-radius: 8px;
+            font-size: 14px; line-height: 1.5; border-left: 4px solid var(--led-green);
+            pointer-events: none; opacity: 0; transition: 0.3s; z-index: 100;
+        }
+
+        /* インタラクティブ・オブジェクト */
+        .obj { position: absolute; cursor: pointer; transition: 0.2s; }
+        .obj:active { transform: scale(0.95); }
+
+        /* パズル用オーバーレイ */
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 200;
+        }
+        .keypad { display: grid; grid-template-columns: repeat(3, 60px); gap: 10px; }
+        .key { width: 60px; height: 60px; background: #333; border: 1px solid #666; 
+               display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
+        .display { width: 200px; height: 50px; background: #000; color: var(--led-green); 
+                   text-align: center; line-height: 50px; font-size: 24px; margin-bottom: 20px; border: 2px solid #444; }
+
+        /* 特殊エフェクト */
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-view">
+    <div id="scene">
+        <div class="wall"></div>
+        
+        <div id="obj-wall" class="obj" style="top:25%; left:15%; width:80px; height:80px;" onclick="tapWall()">
+            <svg viewBox="0 0 100 100"><path d="M10,50 L30,40 L50,60 L70,30 L90,50" stroke="#222" fill="none" stroke-width="2"/></svg>
+        </div>
+
+        <div id="obj-door" class="obj" style="top:10%; right:10%; width:100px; height:80%;" onclick="tapDoor()">
+            <svg viewBox="0 0 100 100">
+                <rect x="10" y="0" width="5" height="100" fill="#666"/>
+                <rect x="30" y="0" width="5" height="100" fill="#666"/>
+                <rect x="50" y="0" width="5" height="100" fill="#666"/>
+                <rect x="70" y="0" width="5" height="100" fill="#666"/>
+                <rect x="0" y="40" width="100" height="5" fill="#444"/>
+            </svg>
+        </div>
+
+        <div id="obj-bed" class="obj" style="bottom:10%; left:5%; width:200px; height:100px;" onclick="tapBed()">
+            <svg viewBox="0 0 200 100">
+                <rect x="0" y="40" width="180" height="40" fill="#333"/>
+                <rect x="5" y="30" width="40" height="20" fill="#555"/>
+            </svg>
+        </div>
+
+        <div id="obj-panel" class="obj" style="top:45%; right:5%; width:30px; height:50px;" onclick="openKeypad()">
+            <rect style="width:100%; height:100%; fill:#222; border:1px solid #444;"></rect>
+            <div style="width:10px; height:10px; background:red; margin:5px auto; border-radius:50%;"></div>
+        </div>
+    </div>
+
+    <div id="msg"></div>
+
+    <div id="inventory">
+        <div class="slot" id="slot-0" onclick="selectItem(0)"></div>
+        <div class="slot" id="slot-1" onclick="selectItem(1)"></div>
+        <div class="slot" id="slot-2" onclick="selectItem(2)"></div>
+    </div>
+
+    <div id="overlay">
+        <div style="margin-bottom:20px;">ENTER CODE</div>
+        <div class="display" id="code-display">----</div>
+        <div class="keypad">
+            <div class="key" onclick="pressKey('1')">1</div><div class="key" onclick="pressKey('2')">2</div><div class="key" onclick="pressKey('3')">3</div>
+            <div class="key" onclick="pressKey('4')">4</div><div class="key" onclick="pressKey('5')">5</div><div class="key" onclick="pressKey('6')">6</div>
+            <div class="key" onclick="pressKey('7')">7</div><div class="key" onclick="pressKey('8')">8</div><div class="key" onclick="pressKey('9')">9</div>
+            <div class="key" style="background:#633" onclick="closeKeypad()">X</div><div class="key" onclick="pressKey('0')">0</div><div class="key" style="background:#363" onclick="checkCode()">OK</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const state = {
+        inventory: [],
+        selectedItem: null,
+        wallScraped: false,
+        hasSpoon: false,
+        correctCode: "8241", // 本来はランダム生成が望ましい
+        isDoorOpen: false
+    };
+
+    function showMsg(text) {
+        const m = document.getElementById('msg');
+        m.innerText = text;
+        m.style.opacity = 1;
+        setTimeout(() => { m.style.opacity = 0; }, 2500);
+    }
+
+    function updateInventoryUI() {
+        for(let i=0; i<3; i++) {
+            const slot = document.getElementById(`slot-${i}`);
+            slot.innerText = state.inventory[i] ? state.inventory[i].name : "";
+            slot.classList.remove('selected');
+            if(state.selectedItem === i) slot.classList.add('selected');
+        }
+    }
+
+    function selectItem(index) {
+        if(state.inventory[index]) {
+            state.selectedItem = index;
+        } else {
+            state.selectedItem = null;
+        }
+        updateInventoryUI();
+    }
+
+    function tapBed() {
+        if(!state.hasSpoon) {
+            showMsg("ベッドの隙間に古い金属製のスプーンが落ちていた。");
+            state.inventory.push({ id: 'spoon', name: 'スプーン' });
+            state.hasSpoon = true;
+            updateInventoryUI();
+        } else {
+            showMsg("薄汚れた毛布があるだけだ。");
+        }
+    }
+
+    function tapWall() {
+        const item = state.inventory[state.selectedItem];
+        if(item && item.id === 'spoon') {
+            if(!state.wallScraped) {
+                showMsg("スプーンで壁を削った。中から数字が書かれた紙片が出てきた。 [ 8 2 4 1 ]");
+                state.wallScraped = true;
+            } else {
+                showMsg("壁には「8241」と刻まれている。");
+            }
+        } else {
+            showMsg("壁の一部が脆くなっている。何かで削れそうだ...");
+        }
+    }
+
+    function tapDoor() {
+        if(state.isDoorOpen) {
+            alert("脱出成功！おめでとうございます！");
+            location.reload();
+        } else {
+            showMsg("重厚な鉄格子だ。横のパネルがロックされている。");
+        }
+    }
+
+    // キーパッドロジック
+    let inputCode = "";
+    function openKeypad() { document.getElementById('overlay').style.display = 'flex'; }
+    function closeKeypad() { document.getElementById('overlay').style.display = 'none'; inputCode = ""; updateCodeDisplay(); }
+    
+    function pressKey(num) {
+        if(inputCode.length < 4) {
+            inputCode += num;
+            updateCodeDisplay();
+        }
+    }
+
+    function updateCodeDisplay() {
+        document.getElementById('code-display').innerText = inputCode.padEnd(4, '-');
+    }
+
+    function checkCode() {
+        if(inputCode === state.correctCode) {
+            showMsg("ロックが解除された！");
+            state.isDoorOpen = true;
+            document.getElementById('obj-panel').style.background = "var(--led-green)";
+            closeKeypad();
+        } else {
+            const disp = document.getElementById('code-display');
+            disp.classList.add('shake');
+            setTimeout(() => disp.classList.remove('shake'), 500);
+            inputCode = "";
+            updateCodeDisplay();
+        }
+    }
+
+    // 初回メッセージ
+    window.onload = () => {
+        showMsg("ここは...監獄か。なんとかして脱出しないと。");
+    };
+</script>
+
+</body>
+</html>
