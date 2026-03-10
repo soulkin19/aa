@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PRISON ESCAPE: ADVANCED</title>
+    <title>PRISON ESCAPE: THE COMPLEX</title>
     <style>
         :root {
             --bg-dark: #121212; --wall-stone: #3a3a3c; --iron-bar: #555;
@@ -43,8 +43,10 @@
         #term-output { flex: 1; overflow-y: auto; white-space: pre-wrap; margin-bottom: 10px; }
         #term-input { background: transparent; border: none; color: var(--terminal-green); outline: none; font-family: monospace; flex: 1; font-size: 16px; }
 
-        .laser { position: absolute; background: rgba(255, 0, 0, 0.6); box-shadow: 0 0 5px red; pointer-events: none; }
-        
+        .laser { position: absolute; background: rgba(255, 0, 0, 0.7); box-shadow: 0 0 10px red; pointer-events: none; }
+        .warning-light { position: absolute; top: 20px; right: 20px; width: 40px; height: 10px; background: #500; border-radius: 5px; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { background: #500; box-shadow: none; } 50% { background: #f00; box-shadow: 0 0 15px #f00; } }
+
         .shake { animation: shake 0.4s; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
         #end-screen { position: absolute; inset: 0; background: #000; z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px; }
@@ -87,7 +89,7 @@
         hasStaffCard: false, wardPowerOn: false, pcLoggedIn: false,
         hasRustyKey: false, mainGateOpen: false, alarmTriggered: false,
         gameEnded: false, alarmSeconds: 15,
-        hiddenDoorJammed: true, doorTaps: 0, hasFlashlight: false, laserActive: true
+        hiddenDoorFixed: false, hasFlashlight: false, laserActive: true
     };
 
     const items = {
@@ -143,8 +145,8 @@
             title: "医務室", bg: "#2a2a2a", nav: { w: 'cafeteria', e: 'hidden' },
             setup: (c) => {
                 addDivObj(c, 'bed1', 50, 150, 120, 200, 'background:#444; border:2px solid #555;', null, "BED");
-                addDivObj(c, 'cabinet', 350, 100, 80, 150, 'background:#555; border:1px solid #777;', tapCabinet);
-                if(!state.hasFlashlight) addDivObj(c, 'flashlight', 370, 130, 30, 10, 'background:#777; border:1px solid #999; border-radius:10px;', tapFlashlight);
+                // 薬品棚自体をタップしてペンライトを入手
+                addDivObj(c, 'cabinet', 350, 100, 80, 150, 'background:#555; border:1px solid #777;', tapFlashlight, state.hasFlashlight ? "" : "Flashlight inside?");
             }
         },
         hidden: {
@@ -152,23 +154,35 @@
             setup: (c) => {
                 const it = getSelectedItem();
                 if(it && it.id === 'torch') {
-                    addDivObj(c, 'hint', 200, 100, 150, 50, 'color:#114411; font-weight:bold; font-size:18px;', null, "LASER: CY-MA-YE");
+                    addDivObj(c, 'hint', 180, 120, 200, 80, 'color:#115511; font-weight:bold; font-size:20px; text-shadow: 0 0 5px #0f0;', null, "DEACTIVATE:\nCYAN > MAGENTA > YELLOW");
                 }
-                addSvgObj(c, 'lever', 20, 200, 60, 100, '<rect x="25" y="0" width="10" height="100" fill="#444"/><circle cx="30" cy="0" r="15" fill="#666"/>', tapLever);
-                showMsg(state.hiddenDoorJammed ? "レバーが固まっている！連打してこじ開けろ！" : "看守は去ったようだ。戻れる。");
-                if(!state.hiddenDoorJammed) updateNavButtons({ w: 'infirmary' });
+                addSvgObj(c, 'lever', 30, 220, 60, 100, '<rect x="25" y="0" width="10" height="100" fill="#444"/><circle cx="30" cy="0" r="15" fill="#666"/>', tapLever);
+                
+                if(state.alarmTriggered && state.alarmSeconds <= 0) {
+                    if(!state.hiddenDoorFixed) showMsg("ドアがロックされた。レバーを戻せ。");
+                    else {
+                        showMsg("戻れるようになった。");
+                        updateNavButtons({ w: 'infirmary' });
+                    }
+                }
             }
         },
         corridor: {
             title: "連絡通路 (警戒中)", bg: "#0a0a0a", nav: { e: 'cafeteria' },
             setup: (c) => {
+                // 寂しさをなくすための背景演出
+                addDivObj(c, 'warn', 430, 20, 40, 10, '', null);
+                c.innerHTML += '<div class="warning-light"></div>';
+                
                 if(state.laserActive) {
-                    for(let i=0; i<5; i++) {
+                    for(let i=0; i<8; i++) {
                         const l = document.createElement('div'); l.className = 'laser';
-                        l.style.cssText = `left:0; top:${100 + i*60}px; width:100%; height:2px;`; c.appendChild(l);
+                        l.style.cssText = `left:0; top:${80 + i*45}px; width:100%; height:2px; opacity:${0.4 + Math.random()*0.4}`; 
+                        c.appendChild(l);
                     }
+                    addDivObj(c, 'laser-label', 50, 200, 400, 100, 'color:rgba(255,0,0,0.3); font-size:40px; transform:rotate(-15deg); pointer-events:none;', null, "RESTRICTED AREA");
                 }
-                addDivObj(c, 'laser-panel', 440, 200, 50, 70, 'background:#222; border:2px solid #444;', openLaserPanel);
+                addDivObj(c, 'laser-panel', 440, 220, 50, 80, 'background:#222; border:2px solid #555; box-shadow: 0 0 10px #000;', openLaserPanel, "PANEL");
             }
         },
         storage: {
@@ -259,13 +273,21 @@
         else { document.getElementById('code-disp').classList.add('shake'); setTimeout(() => { inputCode = ""; document.getElementById('code-disp').innerText = "----"; document.getElementById('code-disp').classList.remove('shake'); }, 400); }
     }
 
-    function tapCabinet() { showMsg("薬品棚だ。"); }
-    function tapFlashlight() { state.hasFlashlight = true; state.inventory.push(items.torch); showMsg("「ペンライト」入手。暗い場所で役立ちそうだ。"); updateInventoryUI(); changeRoom('infirmary'); }
+    function tapFlashlight() { 
+        if(!state.hasFlashlight) {
+            state.hasFlashlight = true; state.inventory.push(items.torch); 
+            showMsg("棚の奥から「ペンライト」を見つけた！"); 
+            updateInventoryUI(); changeRoom('infirmary'); 
+        } else {
+            showMsg("薬品が並んでいる。");
+        }
+    }
 
     function tapLever() {
-        if(state.hiddenDoorJammed) {
-            state.doorTaps++; if(state.doorTaps >= 5) { state.hiddenDoorJammed = false; showMsg("ガコッ！レバーが動いた！"); changeRoom('hidden'); }
-            else { showMsg("固い！もっと強く！（連打）"); }
+        if(!state.hiddenDoorFixed) {
+            state.hiddenDoorFixed = true; 
+            showMsg("レバーを操作した。ドアのロックが解除された。");
+            changeRoom('hidden'); 
         }
     }
 
