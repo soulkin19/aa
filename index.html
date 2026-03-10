@@ -3,53 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PRISON ESCAPE: THE COMPLEX</title>
+    <title>PRISON ESCAPE: REMASTERED</title>
     <style>
         :root {
-            --bg-dark: #121212; --wall-stone: #3a3a3c; --iron-bar: #555;
-            --led-red: #ff3b30; --led-green: #4cd964; --led-blue: #007aff;
+            --bg-dark: #121212; --led-red: #ff3b30; --led-green: #4cd964; --led-blue: #007aff;
             --terminal-green: #33ff33;
         }
-        body { margin: 0; padding: 0; background: #000; font-family: 'Courier New', monospace; color: #eee; overflow: hidden; user-select: none; }
+        body { margin: 0; padding: 0; background: #000; font-family: 'Courier New', monospace; color: #eee; overflow: hidden; user-select: none; touch-action: manipulation; }
         #game-view { width: 100vw; height: 100vh; max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; position: relative; border-left: 2px solid #333; border-right: 2px solid #333; }
-        #scene { flex: 1; position: relative; background: var(--bg-dark); overflow: hidden; transition: background 0.5s; }
+        #scene { flex: 1; position: relative; background: #1a1a1a; overflow: hidden; transition: 0.5s; }
         #room-title { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 4px 12px; border-radius: 4px; font-size: 14px; z-index: 50; border-left: 2px solid var(--led-blue); }
         
-        #timer-display { position: absolute; top: 10px; right: 10px; background: rgba(180, 0, 0, 0.8); padding: 5px 10px; border-radius: 4px; font-size: 16px; font-weight: bold; color: white; z-index: 200; display: none; border: 1px solid #ff0000; box-shadow: 0 0 10px #ff0000; }
+        #timer-display { position: absolute; top: 10px; right: 10px; background: rgba(180, 0, 0, 0.8); padding: 5px 10px; border-radius: 4px; font-size: 16px; font-weight: bold; color: white; z-index: 200; display: none; border: 1px solid #ff0000; }
 
-        #inventory { height: 80px; background: #1a1a1a; display: flex; gap: 8px; padding: 8px; border-top: 2px solid #444; overflow-x: auto; }
-        .slot { min-width: 65px; height: 60px; background: #2c2c2e; border: 2px solid #555; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; cursor: pointer; color: #aaa; transition: 0.2s; }
-        .slot.selected { border-color: var(--led-blue); box-shadow: 0 0 8px var(--led-blue); color: #fff; background: #3a3a3c; }
+        #inventory { height: 85px; background: #1a1a1a; display: flex; gap: 8px; padding: 10px; border-top: 2px solid #444; }
+        .slot { flex: 1; height: 65px; background: #2c2c2e; border: 2px solid #555; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .slot.selected { border-color: var(--led-blue); box-shadow: 0 0 10px var(--led-blue); background: #3a3a3c; color: #fff; }
 
-        #msg { position: absolute; bottom: 100px; left: 20px; right: 20px; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.4; border: 1px solid #444; border-left: 4px solid var(--led-blue); pointer-events: none; opacity: 0; transition: 0.3s; z-index: 100; }
+        #msg { position: absolute; bottom: 110px; left: 20px; right: 20px; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; font-size: 13px; border-left: 4px solid var(--led-blue); opacity: 0; transition: 0.3s; z-index: 100; pointer-events: none; }
 
-        .nav-btn { position: absolute; width: 50px; height: 50px; background: rgba(255,255,255,0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; cursor: pointer; z-index: 60; backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); }
-        .nav-n { top: 60px; left: calc(50% - 25px); }
-        .nav-s { bottom: 20px; left: calc(50% - 25px); }
-        .nav-e { top: calc(50% - 25px); right: 15px; }
-        .nav-w { top: calc(50% - 25px); left: 15px; }
+        .nav-btn { position: absolute; width: 55px; height: 55px; background: rgba(255,255,255,0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; color: white; cursor: pointer; z-index: 60; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); }
+        .nav-n { top: 70px; left: calc(50% - 27px); }
+        .nav-s { bottom: 25px; left: calc(50% - 27px); }
+        .nav-e { top: calc(50% - 27px); right: 15px; }
+        .nav-w { top: calc(50% - 27px); left: 15px; }
 
-        .obj { position: absolute; cursor: pointer; transition: 0.2s; }
-        .obj:active { transform: scale(0.95); opacity: 0.8; }
+        .obj { position: absolute; cursor: pointer; }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
+        .close-overlay { position: absolute; top: 20px; right: 20px; font-size: 35px; cursor: pointer; }
 
-        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
-        .close-overlay { position: absolute; top: 15px; right: 15px; font-size: 30px; cursor: pointer; color: #fff; width: 40px; height: 40px; text-align: center; }
+        .keypad { display: grid; grid-template-columns: repeat(3, 65px); gap: 12px; }
+        .key { width: 65px; height: 65px; background: #333; display: flex; align-items: center; justify-content: center; font-size: 22px; border-radius: 10px; border: 1px solid #555; }
+        .display { width: 220px; height: 55px; background: #000; color: var(--led-green); text-align: center; line-height: 55px; font-size: 26px; margin-bottom: 25px; border: 2px solid #444; }
 
-        .keypad { display: grid; grid-template-columns: repeat(3, 60px); gap: 10px; }
-        .key { width: 60px; height: 60px; background: #333; border: 1px solid #666; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; border-radius: 8px; }
-        .display { width: 200px; height: 50px; background: #000; color: var(--led-green); text-align: center; line-height: 50px; font-size: 24px; margin-bottom: 20px; border: 2px solid #444; font-family: 'Digital-7', monospace; }
-
-        #terminal-screen { width: 95%; height: 80%; background: #050505; border: 2px solid #333; color: var(--terminal-green); padding: 15px; font-size: 13px; display: flex; flex-direction: column; box-shadow: inset 0 0 20px #003300; }
-        #term-output { flex: 1; overflow-y: auto; white-space: pre-wrap; margin-bottom: 10px; }
-        #term-input { background: transparent; border: none; color: var(--terminal-green); outline: none; font-family: monospace; flex: 1; font-size: 16px; }
-
-        .laser { position: absolute; background: rgba(255, 0, 0, 0.7); box-shadow: 0 0 10px red; pointer-events: none; }
-        .warning-light { position: absolute; top: 20px; right: 20px; width: 40px; height: 10px; background: #500; border-radius: 5px; animation: blink 1s infinite; }
-        @keyframes blink { 0%, 100% { background: #500; box-shadow: none; } 50% { background: #f00; box-shadow: 0 0 15px #f00; } }
-
-        .shake { animation: shake 0.4s; }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
-        #end-screen { position: absolute; inset: 0; background: #000; z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px; }
+        #terminal-screen { width: 90%; height: 70%; background: #050505; color: var(--terminal-green); padding: 15px; font-size: 14px; border: 2px solid #333; overflow: hidden; }
+        .laser { position: absolute; background: rgba(255, 0, 0, 0.7); box-shadow: 0 0 10px red; }
+        #end-screen { position: absolute; inset: 0; background: #000; z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
     </style>
 </head>
 <body>
@@ -58,7 +47,7 @@
     <div id="scene">
         <div id="room-title">Loading...</div>
     </div>
-    <div id="timer-display">TIME TO CAUGHT: 15s</div>
+    <div id="timer-display">TIME: 15s</div>
     <div id="nav-n" class="nav-btn nav-n">▲</div>
     <div id="nav-s" class="nav-btn nav-s">▼</div>
     <div id="nav-e" class="nav-btn nav-e">▶</div>
@@ -69,142 +58,149 @@
         <div class="slot" id="slot-1" onclick="selectItem(1)"></div>
         <div class="slot" id="slot-2" onclick="selectItem(2)"></div>
         <div class="slot" id="slot-3" onclick="selectItem(3)"></div>
-        <div class="slot" id="slot-4" onclick="selectItem(4)"></div>
     </div>
     <div id="overlay">
         <div class="close-overlay" onclick="closeOverlay()">×</div>
         <div id="overlay-content"></div>
     </div>
     <div id="end-screen">
-        <h1 id="end-title" style="font-size:28px; margin-bottom:20px;"></h1>
-        <p id="end-msg" style="font-size:16px; line-height:1.6; color:#ccc; margin-bottom:40px;"></p>
-        <button onclick="location.reload()" style="padding:15px 30px; background:#222; color:white; border:1px solid var(--led-blue); cursor:pointer; border-radius:4px;">RETRY</button>
+        <h1 id="end-title"></h1>
+        <p id="end-msg"></p>
+        <button onclick="location.reload()" style="padding:15px 30px; border:1px solid var(--led-blue); background:none; color:white; margin-top:20px;">RETRY</button>
     </div>
 </div>
 
 <script>
     const state = {
         currentRoom: 'cell', inventory: [], selectedItem: null,
-        wallScraped: false, hasSpoon: false, cellDoorOpen: false,
-        hasStaffCard: false, wardPowerOn: false, pcLoggedIn: false,
-        hasRustyKey: false, mainGateOpen: false, alarmTriggered: false,
-        gameEnded: false, alarmSeconds: 15,
-        hiddenDoorFixed: false, hasFlashlight: false, laserActive: true
+        cellCode: "", pcPass: "", laserSequence: [], laserInput: [],
+        cellDoorOpen: false, hasSpoon: false, wallScraped: false,
+        hasSilverKey: false, hasStaffCard: false, wardPowerOn: false,
+        mainGateOpen: false, alarmTriggered: false, alarmSeconds: 15,
+        hasFlashlight: false, laserActive: true, gameEnded: false
     };
 
     const items = {
         spoon: { id: 'spoon', name: 'スプーン' },
-        note: { id: 'note', name: '紙片[8241]' },
+        note: { id: 'note', name: '古い紙片' },
+        sKey: { id: 'skey', name: '銀の鍵' },
         card: { id: 'card', name: '職員ID証' },
-        key: { id: 'key', name: '錆びた鍵' },
+        rKey: { id: 'rkey', name: '錆びた鍵' },
         torch: { id: 'torch', name: 'ペンライト' }
     };
 
-    const codes = { cellDoor: "8241", pcPass: "evil" };
+    // 初期化：ランダム要素の生成
+    function initRandom() {
+        state.cellCode = Math.floor(1000 + Math.random() * 9000).toString();
+        const words = ["dark", "cold", "exit", "free", "fear", "hope", "evil", "jail"];
+        state.pcPass = words[Math.floor(Math.random() * words.length)];
+        const colors = ["cyan", "magenta", "yellow"];
+        state.laserSequence = [...colors].sort(() => Math.random() - 0.5);
+    }
 
     const rooms = {
         cell: {
-            title: "独房 #101", bg: "linear-gradient(to bottom, #2c2c2e, #000)", nav: {},
+            title: "独房 #101", bg: "linear-gradient(#333, #000)", nav: {},
             setup: (c) => {
-                addSvgObj(c, 'crack', 100, 100, 120, 120, '<path d="M10,60 Q30,20 60,60 T110,60" stroke="#111" fill="none" stroke-width="3"/>', tapWall);
-                addSvgObj(c, 'bed', 20, 300, 220, 120, '<rect x="0" y="40" width="200" height="60" rx="5" fill="#222"/><rect x="10" y="30" width="60" height="30" rx="2" fill="#333"/>', tapBed);
-                addSvgObj(c, 'door', 320, 50, 150, 400, '<rect x="0" y="0" width="10" height="400" fill="#555"/><rect x="40" y="0" width="10" height="400" fill="#555"/><rect x="80" y="0" width="10" height="400" fill="#555"/><rect x="120" y="0" width="10" height="400" fill="#555"/><rect x="0" y="150" width="150" height="15" fill="#444"/>', tapCellDoor);
+                addDivObj(c, 20, 320, 200, 60, 'background:#222; border:1px solid #444;', tapBed, "BED");
+                addDivObj(c, 100, 100, 80, 80, 'border-bottom:2px solid #111;', tapWall);
+                addDivObj(c, 320, 50, 120, 380, 'border:4px solid #444;', tapCellDoor);
                 const pColor = state.cellDoorOpen ? 'var(--led-green)' : 'var(--led-red)';
-                addDivObj(c, 'panel', 270, 200, 40, 60, `background:#1a1a1a; border:2px solid #333;`, openKeypad);
-                addDivObj(c, 'led', 283, 210, 14, 14, `background:${pColor}; border-radius:50%; box-shadow: 0 0 5px ${pColor};`);
+                addDivObj(c, 270, 200, 40, 60, 'background:#111; border:1px solid #333;', openKeypad);
+                addDivObj(c, 285, 210, 10, 10, `background:${pColor}; border-radius:50%;`);
             }
         },
         ward: {
-            title: "隔離病棟廊下", bg: "#151515", nav: { n: 'duty', s: 'cafeteria', w: 'security' },
-            setup: (c) => {
-                addDivObj(c, 'graffiti', 180, 240, 140, 50, 'color:#2a2a2a; font-size:24px; font-weight:bold;', null, "L I V E");
-            }
+            title: "隔離病棟廊下", bg: "#151515", nav: { n: 'library', s: 'cafeteria', w: 'security' },
+            setup: (c) => { addDivObj(c, 150, 100, 200, 300, 'color:#222; font-size:40px; font-weight:bold;', null, "H-1"); }
         },
-        duty: {
-            title: "看守詰所", bg: "#2c2c2e", nav: { s: 'ward' },
+        library: {
+            title: "図書室", bg: "#2a1a10", nav: { s: 'ward' },
             setup: (c) => {
-                addSvgObj(c, 'pc', 160, 180, 180, 150, '<rect x="0" y="0" width="180" height="110" rx="5" fill="#555"/><rect x="10" y="10" width="160" height="90" fill="#000"/>', openPc);
-                const bColor = state.wardPowerOn ? 'var(--led-green)' : 'var(--led-red)';
-                addSvgObj(c, 'breaker', 380, 100, 70, 100, `<rect x="0" y="0" width="70" height="100" fill="#444" stroke="#666"/><circle cx="35" cy="40" r="12" fill="${bColor}"/>`, tapBreaker);
-                addSvgObj(c, 'locker', 40, 120, 80, 260, '<rect x="0" y="0" width="80" height="260" fill="#3a3a3c"/><rect x="50" y="120" width="10" height="40" fill="#222"/>', tapLocker);
+                addDivObj(c, 50, 100, 150, 200, 'background:#3d2b1f; border:2px solid #5d4037;', () => showMsg(`本に書き込みがある：『${state.cellCode}』`), "古い本棚");
+                addDivObj(c, 300, 80, 120, 150, 'background:#eee; color:#000; font-size:10px; padding:5px;', null, `重要：\nPC PASSは\n逆さまに読め\n[${state.pcPass.split('').reverse().join('')}]`);
             }
         },
         security: {
             title: "セキュリティルーム", bg: "#1a1a2e", nav: { e: 'ward' },
             setup: (c) => {
-                if(!state.hasStaffCard) addDivObj(c, 'idcard', 220, 230, 60, 40, 'background:#eee; color:#000; font-size:8px; display:flex; align-items:center; justify-content:center; font-weight:bold;', tapIdCard, "STAFF ID");
+                if(!state.hasStaffCard) addDivObj(c, 220, 230, 60, 40, 'background:#fff; color:#000; font-size:9px; text-align:center;', tapIdCard, "ID CARD");
             }
         },
         cafeteria: {
-            title: "中央食堂", bg: "#1a1a1a", nav: { n: 'ward', s: 'storage', e: 'infirmary', w: 'corridor' },
+            title: "中央食堂", bg: "#1a1a1a", nav: { n: 'ward', s: 'kitchen', e: 'infirmary', w: 'corridor' },
+            setup: (c) => { addDivObj(c, 100, 200, 300, 100, 'background:#333;', null, "DINING AREA"); }
+        },
+        kitchen: {
+            title: "厨房", bg: "#252525", nav: { n: 'cafeteria' },
             setup: (c) => {
-                addDivObj(c, 'table', 100, 200, 300, 100, 'background:#333; border-radius:10px;', null, "MESS HALL");
+                if(!state.hasSilverKey) addDivObj(c, 350, 300, 40, 40, 'background:#aaa; border-radius:50%;', tapSilverKey, "KEY");
+                addDivObj(c, 50, 150, 100, 150, 'background:#444;', () => showMsg("巨大な冷蔵庫だ。"), "FRIDGE");
             }
         },
         infirmary: {
-            title: "医務室", bg: "#2a2a2a", nav: { w: 'cafeteria', e: 'hidden' },
+            title: "医務室", bg: "#202a20", nav: { w: 'cafeteria', e: 'hidden' },
             setup: (c) => {
-                addDivObj(c, 'bed1', 50, 150, 120, 200, 'background:#444; border:2px solid #555;', null, "BED");
-                // 薬品棚自体をタップしてペンライトを入手
-                addDivObj(c, 'cabinet', 350, 100, 80, 150, 'background:#555; border:1px solid #777;', tapFlashlight, state.hasFlashlight ? "" : "Flashlight inside?");
+                addDivObj(c, 350, 100, 100, 180, 'background:#444;', tapCabinet, "CABINET");
             }
         },
         hidden: {
-            title: "隠し部屋", bg: "#050805", nav: {},
+            title: "隠し部屋", bg: "#050505", nav: {},
             setup: (c) => {
                 const it = getSelectedItem();
                 if(it && it.id === 'torch') {
-                    addDivObj(c, 'hint', 180, 120, 200, 80, 'color:#115511; font-weight:bold; font-size:20px; text-shadow: 0 0 5px #0f0;', null, "DEACTIVATE:\nCYAN > MAGENTA > YELLOW");
+                    addDivObj(c, 150, 150, 200, 100, 'color:#0f0; text-shadow:0 0 5px #0f0;', null, `LASER ORDER:\n${state.laserSequence.join(' > ').toUpperCase()}`);
                 }
-                addSvgObj(c, 'lever', 30, 220, 60, 100, '<rect x="25" y="0" width="10" height="100" fill="#444"/><circle cx="30" cy="0" r="15" fill="#666"/>', tapLever);
-                
                 if(state.alarmTriggered && state.alarmSeconds <= 0) {
-                    if(!state.hiddenDoorFixed) showMsg("ドアがロックされた。レバーを戻せ。");
-                    else {
-                        showMsg("戻れるようになった。");
-                        updateNavButtons({ w: 'infirmary' });
-                    }
+                    addDivObj(c, 50, 250, 80, 80, 'background:#333; border:2px solid #555;', () => { showMsg("ドアのロックを解除した。"); changeRoom('hidden'); }, "LEVER");
+                    updateNavButtons({ w: 'infirmary' }); // ここで戻れるように設定
+                } else {
+                    showMsg("ここで息を潜めるんだ...");
                 }
+            }
+        },
+        duty: { // 隔離廊下の上にあるはずだが、ギミックとして追加
+            title: "看守詰所", bg: "#2c2c2e", nav: { s: 'cafeteria' }, // 中央食堂の上に配置変更
+            setup: (c) => {
+                addDivObj(c, 160, 180, 180, 120, 'background:#111; border:2px solid #555;', openPc, "PC TERMINAL");
+                const bColor = state.wardPowerOn ? 'var(--led-green)' : 'var(--led-red)';
+                addDivObj(c, 400, 100, 60, 100, `background:#333; border:2px solid ${bColor};`, tapBreaker, "POWER");
+                if(!state.hasRustyKey) addDivObj(c, 50, 100, 80, 200, 'background:#444;', tapLocker, "LOCKER");
             }
         },
         corridor: {
-            title: "連絡通路 (警戒中)", bg: "#0a0a0a", nav: { e: 'cafeteria' },
+            title: "連絡通路", bg: "#0a0a0a", nav: { e: 'cafeteria' },
             setup: (c) => {
-                // 寂しさをなくすための背景演出
-                addDivObj(c, 'warn', 430, 20, 40, 10, '', null);
-                c.innerHTML += '<div class="warning-light"></div>';
-                
                 if(state.laserActive) {
-                    for(let i=0; i<8; i++) {
+                    for(let i=0; i<6; i++) {
                         const l = document.createElement('div'); l.className = 'laser';
-                        l.style.cssText = `left:0; top:${80 + i*45}px; width:100%; height:2px; opacity:${0.4 + Math.random()*0.4}`; 
-                        c.appendChild(l);
+                        l.style.cssText = `left:0; top:${100 + i*50}px; width:100%; height:2px;`; c.appendChild(l);
                     }
-                    addDivObj(c, 'laser-label', 50, 200, 400, 100, 'color:rgba(255,0,0,0.3); font-size:40px; transform:rotate(-15deg); pointer-events:none;', null, "RESTRICTED AREA");
+                    addDivObj(c, 440, 200, 50, 80, 'background:#222; border:1px solid #444;', openLaserPanel, "LOCK");
+                } else {
+                    updateNavButtons({ e: 'cafeteria', w: 'maingate' }); // 解除後、左に行ける
+                    addDivObj(c, 100, 200, 300, 50, 'color:var(--led-green);', null, "SYSTEM OFFLINE - CLEAR");
                 }
-                addDivObj(c, 'laser-panel', 440, 220, 50, 80, 'background:#222; border:2px solid #555; box-shadow: 0 0 10px #000;', openLaserPanel, "PANEL");
-            }
-        },
-        storage: {
-            title: "地下倉庫", bg: "#0d0d0d", nav: { n: 'cafeteria' },
-            setup: (c) => {
-                addSvgObj(c, 'duct', 360, 40, 100, 100, '<rect x="0" y="0" width="100" height="100" fill="#000" stroke="#333"/><path d="M0,0 L100,100 M100,0 L0,100" stroke="#333"/>', tapDuct);
             }
         },
         maingate: {
-            title: "施設正門", bg: "#050505", nav: { e: 'corridor' },
+            title: "施設正門", bg: "#000", nav: { e: 'corridor' },
             setup: (c) => {
-                addSvgObj(c, 'gate', 50, 50, 400, 400, '<rect x="0" y="0" width="400" height="400" fill="#111" stroke="#222" stroke-width="8"/>', tapMainGate);
-                const kColor = state.mainGateOpen ? 'var(--led-green)' : 'var(--led-blue)';
-                addDivObj(c, 'keyhole', 425, 220, 30, 60, `background:#222; border:2px solid ${kColor};`, tapKeyhole);
+                addDivObj(c, 50, 50, 400, 400, 'border:10px double #222;', null, "GATE");
+                addDivObj(c, 430, 220, 30, 60, 'background:#111; border:2px solid var(--led-blue);', tapKeyhole, "KEY");
             }
         }
     };
 
-    function initGame() { changeRoom('cell'); updateInventoryUI(); showMsg("今日こそここを出る。"); }
+    function addDivObj(c, x, y, w, h, css, act, text='') {
+        const e = document.createElement('div'); e.className = act ? 'obj' : '';
+        e.style.cssText = `position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px; z-index:10; display:flex; align-items:center; justify-content:center; text-align:center; cursor:pointer; font-size:12px; ${css}`;
+        if(act) e.onclick = act; e.innerText = text; c.appendChild(e);
+    }
+
     function changeRoom(id) {
-        if(id === 'security' && !state.hasRustyKey) { showMsg("扉は施錠されている。「錆びた鍵」が必要だ。"); return; }
-        if(id === 'maingate' && state.laserActive) { triggerEnd('C'); return; }
+        if(id === 'security' && !state.hasSilverKey) { showMsg("「銀の鍵」が必要だ。"); return; }
+        if(id === 'duty' && !state.hasStaffCard) { showMsg("「職員ID証」が必要だ。"); return; }
         state.currentRoom = id; const r = rooms[id]; const s = document.getElementById('scene');
         s.innerHTML = `<div id="room-title">${r.title}</div>`; s.style.background = r.bg;
         r.setup(s); updateNavButtons(r.nav);
@@ -218,152 +214,99 @@
         });
     }
 
-    function addSvgObj(c, id, x, y, w, h, svg, act) {
-        const e = document.createElement('div'); e.className = 'obj'; e.style.cssText = `position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px; z-index:10;`;
-        if(act) e.onclick = act; e.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%">${svg}</svg>`;
-        c.appendChild(e);
-    }
-
-    function addDivObj(c, id, x, y, w, h, css, act, text='') {
-        const e = document.createElement('div'); e.id = `obj-${id}`; e.className = act ? 'obj' : '';
-        e.style.cssText = `position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px; z-index:11; ${css}`;
-        if(act) e.onclick = act; e.innerText = text; c.appendChild(e);
-    }
-
     function showMsg(t) {
         const m = document.getElementById('msg'); m.innerText = t; m.style.opacity = 1;
         clearTimeout(state.msgTimer); state.msgTimer = setTimeout(() => m.style.opacity = 0, 3000);
     }
 
-    function updateInventoryUI() {
-        for(let i=0; i<5; i++) {
-            const s = document.getElementById(`slot-${i}`);
-            s.innerText = state.inventory[i] ? state.inventory[i].name : "";
-            s.classList.remove('selected'); if(state.selectedItem === i) s.classList.add('selected');
-        }
-    }
-
-    function selectItem(i) {
-        if(state.inventory[i]) state.selectedItem = (state.selectedItem === i) ? null : i;
-        else state.selectedItem = null;
-        updateInventoryUI(); if(state.currentRoom === 'hidden') changeRoom('hidden');
-    }
-
-    function getSelectedItem() { return state.inventory[state.selectedItem]; }
-    function openOverlay(h) { document.getElementById('overlay-content').innerHTML = h; document.getElementById('overlay').style.display = 'flex'; }
-    function closeOverlay() { document.getElementById('overlay').style.display = 'none'; inputCode = ""; }
-
-    function tapBed() { if(!state.hasSpoon) { showMsg("「スプーン」入手。"); state.inventory.push(items.spoon); state.hasSpoon = true; updateInventoryUI(); } }
-    function tapWall() {
-        const it = getSelectedItem();
-        if(it && it.id === 'spoon') { if(!state.wallScraped) { showMsg("「紙片」入手。"); state.inventory.push(items.note); state.wallScraped = true; updateInventoryUI(); } }
-        else showMsg("壁が脆い。");
-    }
-    function tapCellDoor() { if(state.cellDoorOpen) changeRoom('ward'); else showMsg("ロックされている。"); }
-    
+    // ギミック：独房のキーパッド
     let inputCode = "";
     function openKeypad() {
         if(state.cellDoorOpen) return;
-        const h = `<div class="display" id="code-disp">----</div><div class="keypad">` + [1,2,3,4,5,6,7,8,9,0].map(n => `<div class="key" onclick="pressKey('${n}')">${n}</div>`).join('') + `<div class="key" style="background:var(--led-green)" onclick="checkCode()">OK</div></div>`;
+        let h = `<div class="display" id="code-disp">----</div><div class="keypad">`;
+        for(let i=1; i<=9; i++) h += `<div class="key" onclick="pressKey('${i}')">${i}</div>`;
+        h += `<div class="key" onclick="pressKey('0')">0</div><div class="key" style="background:#444" onclick="inputCode=''">C</div><div class="key" style="background:var(--led-green)" onclick="checkCode()">OK</div></div>`;
         openOverlay(h);
     }
     function pressKey(n) { if(inputCode.length < 4) { inputCode += n; document.getElementById('code-disp').innerText = inputCode.padEnd(4, '-'); } }
     function checkCode() {
-        if(inputCode === codes.cellDoor) { state.cellDoorOpen = true; closeOverlay(); changeRoom('cell'); showMsg("解除。"); }
-        else { document.getElementById('code-disp').classList.add('shake'); setTimeout(() => { inputCode = ""; document.getElementById('code-disp').innerText = "----"; document.getElementById('code-disp').classList.remove('shake'); }, 400); }
+        if(inputCode === state.cellCode) { state.cellDoorOpen = true; closeOverlay(); changeRoom('cell'); showMsg("ロック解除成功。"); }
+        else { showMsg("コードが違う。"); inputCode = ""; document.getElementById('code-disp').innerText = "----"; }
     }
 
-    function tapFlashlight() { 
-        if(!state.hasFlashlight) {
-            state.hasFlashlight = true; state.inventory.push(items.torch); 
-            showMsg("棚の奥から「ペンライト」を見つけた！"); 
-            updateInventoryUI(); changeRoom('infirmary'); 
-        } else {
-            showMsg("薬品が並んでいる。");
-        }
-    }
-
-    function tapLever() {
-        if(!state.hiddenDoorFixed) {
-            state.hiddenDoorFixed = true; 
-            showMsg("レバーを操作した。ドアのロックが解除された。");
-            changeRoom('hidden'); 
-        }
-    }
-
-    function openLaserPanel() {
-        let h = `<div style="margin-bottom:20px;">LASER SECURITY</div><div style="display:flex; gap:10px;">` + 
-            ['cyan','magenta','yellow'].map(c => `<div style="width:60px; height:60px; background:${c}; border:2px solid #555;" onclick="tapLaserColor('${c}')"></div>`).join('') + `</div><div id="laser-status" style="margin-top:20px;">INPUT SEQUENCE...</div>`;
-        openOverlay(h); laserInput = [];
-    }
-    let laserInput = [];
-    function tapLaserColor(c) {
-        laserInput.push(c); document.getElementById('laser-status').innerText = "INPUT: " + laserInput.length + "/3";
-        if(laserInput.length === 3) {
-            if(laserInput[0]==='cyan' && laserInput[1]==='magenta' && laserInput[2]==='yellow') { state.laserActive = false; showMsg("レーザー無効化。"); closeOverlay(); changeRoom('corridor'); }
-            else { triggerAlarm(); closeOverlay(); }
-        }
-    }
-
-    function tapBreaker() { if(!state.wardPowerOn) openBreakerPuzzle(); else showMsg("通電中。"); }
-    function openBreakerPuzzle() {
-        const h = `<div style="text-align:center; margin-bottom:15px;">R+B=?</div><div style="display:flex; gap:10px;">` + ['yellow','magenta','cyan'].map(c => `<div style="width:50px; height:50px; background:${c}; cursor:pointer;" onclick="solveBreaker('${c}')"></div>`).join('') + `</div>`;
-        openOverlay(h);
-    }
-    function solveBreaker(c) { if(c === 'magenta') { state.wardPowerOn = true; closeOverlay(); changeRoom('duty'); showMsg("電力復旧。"); } else { triggerAlarm(); closeOverlay(); } }
-
-    function tapLocker() { if(!state.hasRustyKey) { if(confirm("ロッカーを開けますか？")) { showMsg("「錆びた鍵」入手！隠れろ！"); state.inventory.push(items.key); state.hasRustyKey = true; updateInventoryUI(); triggerAlarm(); } } }
-    function tapIdCard() { showMsg("「職員ID証」入手。"); state.inventory.push(items.card); state.hasStaffCard = true; updateInventoryUI(); changeRoom('security'); }
-
+    // ギミック：PC
     function openPc() {
-        if(!state.wardPowerOn) return;
-        openOverlay(`<div id="terminal-screen"><div id="term-output">Input Staff ID:</div><div style="display:flex;">> <input type="text" id="term-input" onkeydown="handleTerm(event)" autofocus></div></div>`);
-        state.termStage = 'id';
+        if(!state.wardPowerOn) { showMsg("電力が供給されていない。"); return; }
+        openOverlay(`<div id="terminal-screen"><div id="t-out">LOGIN STAFF ID:</div><input type="text" id="t-in" style="background:none; border:none; color:var(--terminal-green); outline:none; width:100%; font-size:20px;" onkeydown="handlePC(event)"></div>`);
     }
-    function handleTerm(e) {
+    function handlePC(e) {
         if(e.key !== 'Enter') return;
-        const i = e.target.value.toLowerCase().trim(); const out = document.getElementById('term-output'); e.target.value = '';
-        if(state.termStage === 'id') { if(state.hasStaffCard && i === '1004') { out.innerText += `\n${i}\nID Verified.\nInput Password:`; state.termStage = 'pass'; } }
-        else if(state.termStage === 'pass') { if(i === codes.pcPass) { out.innerText += `\n****\n1. Unlock Gate\n2. Exit`; state.termStage = 'menu'; } else { triggerAlarm(); closeOverlay(); } }
-        else if(state.termStage === 'menu') { if(i === '1') { state.mainGateOpen = true; showMsg("正門ロック解除。"); out.innerText += `\nGATE UNLOCKED.`; } else if(i === '2') closeOverlay(); }
+        const val = e.target.value.toLowerCase(); const out = document.getElementById('t-out');
+        if(val === "1004") { out.innerText += `\n${val}\nACCESS GRANTED.\nENTER PASSWORD:`; e.target.value = ""; }
+        else if(val === state.pcPass) { out.innerText += `\nSuccess.\n[1] OPEN MAIN GATE\n[2] EXIT`; e.target.value = ""; }
+        else if(val === "1") { state.mainGateOpen = true; out.innerText += `\nGATE UNLOCKED.`; showMsg("正門のロックを遠隔解除した！"); }
+        else { out.innerText = "INVALID INPUT."; e.target.value = ""; }
     }
 
-    function tapDuct() { if(confirm("ダクトに入りますか？")) startDuctMaze(); }
-    function startDuctMaze() { state.ductPos = 0; openOverlay(`<div id="duct-t">風が吹く。</div><button onclick="moveDuct('l')">左</button> <button onclick="moveDuct('r')">右</button>`); }
-    function moveDuct(d) { state.ductPos++; if(state.ductPos === 3 && d === 'l') triggerEnd('B'); else if(state.ductPos < 3 && d === 'l') document.getElementById('duct-t').innerText = "進んでいる..."; else { triggerAlarm(); closeOverlay(); } }
-
-    function tapMainGate() { showMsg("巨大な門だ。"); }
-    function tapKeyhole() { if(!state.mainGateOpen) return; const it = getSelectedItem(); if(it && it.id === 'key') triggerEnd('A'); }
+    // ギミック：レーザーパネル
+    function openLaserPanel() {
+        let h = `<div style="margin-bottom:20px;">SECURITY SEQUENCE</div><div style="display:flex; gap:10px;">`;
+        ["cyan", "magenta", "yellow"].forEach(c => h += `<div style="width:70px; height:70px; background:${c};" onclick="tapLaserColor('${c}')"></div>`);
+        h += `</div><div id="l-status" style="margin-top:20px;">INPUT...</div>`;
+        openOverlay(h); state.laserInput = [];
+    }
+    function tapLaserColor(c) {
+        state.laserInput.push(c); document.getElementById('l-status').innerText = `INPUT: ${state.laserInput.length}/3`;
+        if(state.laserInput.length === 3) {
+            if(JSON.stringify(state.laserInput) === JSON.stringify(state.laserSequence)) {
+                state.laserActive = false; closeOverlay(); changeRoom('corridor'); showMsg("システムダウン。進めるぞ。");
+            } else { showMsg("警報！順序が違う！"); triggerAlarm(); closeOverlay(); }
+        }
+    }
 
     function triggerAlarm() {
         if(state.alarmTriggered) return; state.alarmTriggered = true;
         document.getElementById('timer-display').style.display = 'block';
-        const alarmInterval = setInterval(() => {
-            state.alarmSeconds--; document.getElementById('timer-display').innerText = `TIME TO CAUGHT: ${state.alarmSeconds}s`;
-            document.getElementById('scene').style.background = (state.alarmSeconds % 2 === 0) ? "#411" : "#111";
+        const timer = setInterval(() => {
+            state.alarmSeconds--; document.getElementById('timer-display').innerText = `CAUGHT IN: ${state.alarmSeconds}s`;
             if(state.alarmSeconds <= 0) {
-                clearInterval(alarmInterval);
-                if(state.currentRoom !== 'hidden' && !state.gameEnded) { triggerEnd('C'); }
+                clearInterval(timer);
+                if(state.currentRoom !== 'hidden' && !state.gameEnded) triggerEnd('CAPTURE');
                 else if(state.currentRoom === 'hidden') {
-                    showMsg("看守たちが通り過ぎていった...。");
                     document.getElementById('timer-display').style.display = 'none';
-                    document.getElementById('scene').style.background = rooms['hidden'].bg;
-                    changeRoom('hidden'); 
+                    showMsg("看守たちは去った...。");
+                    changeRoom('hidden');
                 }
             }
         }, 1000);
     }
 
+    // 各種タップイベント
+    function tapWall() { if(getSelectedItem()?.id === 'spoon' && !state.wallScraped) { state.inventory.push(items.note); state.wallScraped = true; updateInventoryUI(); showMsg("壁を削って「古い紙片」を見つけた。"); } else showMsg("壁は冷たい。"); }
+    function tapBed() { if(!state.hasSpoon) { state.hasSpoon = true; state.inventory.push(items.spoon); updateInventoryUI(); showMsg("ベッドの隙間に「スプーン」があった。"); } }
+    function tapCellDoor() { if(state.cellDoorOpen) changeRoom('ward'); else showMsg("鉄格子は動かない。"); }
+    function tapSilverKey() { state.hasSilverKey = true; state.inventory.push(items.sKey); updateInventoryUI(); changeRoom('kitchen'); showMsg("「銀の鍵」を手に入れた。"); }
+    function tapIdCard() { state.hasStaffCard = true; state.inventory.push(items.card); updateInventoryUI(); changeRoom('security'); showMsg("「職員ID証」を手に入れた。"); }
+    function tapCabinet() { if(!state.hasFlashlight) { state.hasFlashlight = true; state.inventory.push(items.torch); updateInventoryUI(); showMsg("「ペンライト」を入手。"); } }
+    function tapBreaker() { if(confirm("配電盤を修理しますか？")) { state.wardPowerOn = true; changeRoom('duty'); showMsg("電力が復旧した！"); } }
+    function tapLocker() { if(confirm("ロッカーをこじ開けますか？")) { state.hasRustyKey = true; state.inventory.push(items.rKey); updateInventoryUI(); triggerAlarm(); showMsg("「錆びた鍵」入手！警報が鳴った、隠れろ！"); } }
+    function tapKeyhole() { if(state.mainGateOpen && getSelectedItem()?.id === 'rkey') triggerEnd('ESCAPE'); else showMsg("鍵か、あるいは遠隔操作が必要だ。"); }
+
+    function selectItem(i) { state.selectedItem = (state.selectedItem === i) ? null : i; updateInventoryUI(); if(state.currentRoom==='hidden') changeRoom('hidden'); }
+    function updateInventoryUI() { for(let i=0; i<4; i++) { const s = document.getElementById(`slot-${i}`); s.innerText = state.inventory[i]?.name || ""; s.classList.toggle('selected', state.selectedItem === i); } }
+    function getSelectedItem() { return state.inventory[state.selectedItem]; }
+    function openOverlay(h) { document.getElementById('overlay-content').innerHTML = h; document.getElementById('overlay').style.display = 'flex'; }
+    function closeOverlay() { document.getElementById('overlay').style.display = 'none'; inputCode = ""; }
+
     function triggerEnd(type) {
-        state.gameEnded = true; closeOverlay();
-        const s = document.getElementById('end-screen'); const t = document.getElementById('end-title'); const m = document.getElementById('end-msg');
+        state.gameEnded = true; const s = document.getElementById('end-screen');
         s.style.display = 'flex';
-        if(type === 'A') { t.innerText = "END A: TRUE FREEDOM"; t.style.color = "var(--led-green)"; m.innerText = "自由を手に入れた。"; }
-        else if(type === 'B') { t.innerText = "END B: ESCAPE TO DARK"; t.style.color = "var(--led-blue)"; m.innerText = "地下道へ脱出した。"; }
-        else { t.innerText = "END C: CAPTURED"; t.style.color = "var(--led-red)"; m.innerText = "看守に捕まった。"; }
+        if(type === 'ESCAPE') { document.getElementById('end-title').innerText = "ESCAPE SUCCESS"; document.getElementById('end-msg').innerText = "あなたは自由を掴み取った。"; }
+        else { document.getElementById('end-title').innerText = "GAME OVER"; document.getElementById('end-msg').innerText = "看守に捕らえられ、一生を独房で過ごすことになった。"; }
     }
 
-    window.onload = initGame;
+    initRandom(); initGame();
+    function initGame() { changeRoom('cell'); updateInventoryUI(); }
 </script>
 </body>
 </html>
