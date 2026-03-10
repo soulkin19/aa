@@ -3,551 +3,237 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PRISON ESCAPE: THE MAP</title>
+    <title>PRISON ESCAPE: THE COMPLEX</title>
     <style>
         :root {
-            --bg-dark: #121212;
-            --wall-concrete: #4a4a4c;
-            --iron: #333;
-            --accent: #3498db;
-            --led-red: #e74c3c;
-            --led-green: #2ecc71;
-            --text: #eee;
+            --bg: #0d0d0d; --wall: #2c2c2e; --accent: #007aff;
+            --danger: #ff3b30; --success: #4cd964; --gold: #ffcc00;
         }
+        body { margin: 0; background: #000; color: #eee; font-family: 'Courier New', monospace; overflow: hidden; }
+        #game-view { width: 100vw; height: 100vh; max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; position: relative; border: 1px solid #333; }
+        
+        /* 画面上部：ステータス */
+        #header { height: 40px; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; font-size: 12px; border-bottom: 1px solid #444; }
+        
+        /* メインシーン */
+        #scene { flex: 1; position: relative; background: var(--bg); overflow: hidden; }
+        
+        /* 移動システム */
+        .nav { position: absolute; width: 45px; height: 45px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
+        .n { top: 10px; left: 50%; transform: translateX(-50%); }
+        .s { bottom: 10px; left: 50%; transform: translateX(-50%); }
+        .e { right: 10px; top: 50%; transform: translateY(-50%); }
+        .w { left: 10px; top: 50%; transform: translateY(-50%); }
 
-        body {
-            margin: 0; padding: 0; background: #000;
-            font-family: 'Courier New', Courier, monospace;
-            color: var(--text); overflow: hidden; user-select: none;
-            -webkit-touch-callout: none; /* iOS長押しメニュー防止 */
-        }
-
-        /* ゲーム画面全体 */
-        #game-view {
-            width: 100vw; height: 100vh;
-            max-width: 500px; margin: 0 auto;
-            display: flex; flex-direction: column;
-            position: relative; background: var(--bg-dark);
-        }
-
-        /* 視点表示エリア */
-        #viewport {
-            flex: 1; position: relative;
-            background: var(--wall-concrete);
-            overflow: hidden;
-            border-bottom: 2px solid #333;
-        }
-
-        /* 部屋の名前と視点方向 */
-        #room-info {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(0,0,0,0.8); padding: 4px 10px;
-            border-radius: 4px; font-size: 14px; z-index: 50;
-            border: 1px solid #444;
-        }
+        /* オブジェクト */
+        .obj { position: absolute; cursor: pointer; transition: 0.2s; z-index: 10; }
+        .obj:active { transform: scale(0.9); }
 
         /* インベントリ */
-        #inventory {
-            height: 70px; background: #1a1a1a;
-            display: flex; gap: 5px; padding: 5px;
-            justify-content: center;
-        }
-        .slot {
-            width: 60px; height: 60px; background: #2c2c2e;
-            border: 2px solid #555; border-radius: 4px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 10px; text-align: center; cursor: pointer; color: #aaa;
-        }
-        .slot.selected { border-color: var(--accent); box-shadow: 0 0 10px var(--accent); color: #fff; }
+        #inventory { height: 85px; background: #111; display: flex; gap: 8px; padding: 10px; border-top: 2px solid #333; overflow-x: auto; }
+        .slot { min-width: 65px; height: 65px; background: #222; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; position: relative; }
+        .slot.selected { border-color: var(--accent); box-shadow: 0 0 10px var(--accent); }
 
-        /* メッセージエリア */
-        #msg {
-            position: absolute; bottom: 85px; left: 10px; right: 10px;
-            background: rgba(0,0,0,0.95); padding: 15px; border-radius: 8px;
-            font-size: 14px; line-height: 1.5; border-left: 4px solid var(--accent);
-            pointer-events: none; opacity: 0; transition: 0.3s; z-index: 100;
-        }
+        /* メッセージ表示 */
+        #msg { position: absolute; bottom: 105px; left: 10px; right: 10px; background: rgba(0,0,0,0.9); padding: 12px; border-radius: 5px; font-size: 13px; border-left: 4px solid var(--accent); opacity: 0; transition: 0.3s; z-index: 200; pointer-events: none; }
 
-        /* --- 操作UI --- */
-        /* 視点変更ボタン（左右） */
-        .view-btn {
-            position: absolute; top: 50%; width: 50px; height: 80px;
-            background: rgba(0,0,0,0.5); color: white;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 30px; cursor: pointer; z-index: 60;
-            margin-top: -40px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-        .view-left { left: 0; border-radius: 0 10px 10px 0; }
-        .view-right { right: 0; border-radius: 10px 0 0 10px; }
+        /* 特殊画面オーバーレイ */
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 500; }
+        .close-btn { position: absolute; top: 20px; right: 20px; font-size: 30px; cursor: pointer; }
 
-        /* 部屋移動ボタン（上下） */
-        .move-btn {
-            position: absolute; left: 50%; width: 80px; height: 40px;
-            background: rgba(52, 152, 219, 0.3); color: white;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px; cursor: pointer; z-index: 60;
-            margin-left: -40px; border: 1px solid var(--accent);
-        }
-        .move-up { top: 60px; border-radius: 10px 10px 0 0; }
-        .move-down { bottom: 10px; border-radius: 0 0 10px 10px; background: rgba(231, 76, 60, 0.3); border-color: var(--led-red); }
-
-        /* 地図ボタン */
-        #map-btn {
-            position: absolute; top: 10px; right: 10px;
-            width: 40px; height: 40px; background: #444;
-            border-radius: 4px; display: none; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 55; font-size: 20px; border: 1px solid #666;
-        }
-
-        /* --- オブジェクト表現 --- */
-        .obj {
-            position: absolute; cursor: pointer;
-            backface-visibility: hidden; /* ちらつき防止 */
-        }
-        /* 調査可能インジケーター（うっすら光る） */
-        .interactive {
-            box-shadow: 0 0 5px rgba(255,255,255,0.1);
-            border-radius: 2px;
-            transition: 0.2s;
-        }
-        .interactive:active {
-            box-shadow: 0 0 15px rgba(255,255,255,0.5);
-            transform: scale(0.98);
-        }
-
-        /* 具体的なオブジェクトのデザイン（CSSのみ） */
-        .bed { background: #333; border-top: 5px solid #555; }
-        .door { background: #1a1a1a; border: 4px solid #333; }
-        .door-bars { background: repeating-linear-gradient(90deg, #333, #333 10px, #555 10px, #555 15px); }
-        .panel { background: #222; border: 2px solid #444; }
-        .led { width: 8px; height: 8px; border-radius: 50%; position: absolute; top: 5px; right: 5px; }
-        .switch { background: #666; border: 2px solid #888; border-radius: 4px; }
-        .switch::after { content:''; position:absolute; top:5px; left:5px; width:20px; height:20px; background:#444; border-radius:2px;}
-        .switch.on::after { top:15px; background: var(--led-green); }
-        .paper { background: #eee; color: #000; padding: 5px; font-size: 8px; font-weight: bold; transform: rotate(-5deg); box-shadow: 2px 2px 5px rgba(0,0,0,0.3);}
-
-        /* パズル/地図オーバーレイ */
-        #overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.95);
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 200; padding: 20px;
-        }
-        .close-overlay { position: absolute; top: 15px; right: 15px; font-size: 28px; cursor: pointer; color: #999; }
-
-        /* キーパッドUI */
-        .keypad { display: grid; grid-template-columns: repeat(3, 60px); gap: 10px; }
-        .key { width: 60px; height: 60px; background: #333; border: 1px solid #666; 
-               display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; border-radius: 4px;}
-        .key:active { background: #555; }
-        .display { width: 200px; height: 50px; background: #000; color: var(--led-green); 
-                   text-align: center; line-height: 50px; font-size: 24px; margin-bottom: 20px; border: 2px solid #444; }
-
-        /* 地図UI */
-        .map-grid {
-            display: grid; grid-template-columns: repeat(3, 80px); grid-template-rows: repeat(3, 80px);
-            gap: 10px; color: #fff; font-size: 12px; text-align: center;
-        }
-        .map-cell { background: #333; border: 2px solid #555; display: flex; align-items: center; justify-content: center; border-radius: 4px; position: relative;}
-        .map-cell.current { border-color: var(--accent); background: #225577; }
-        .map-cell.current::after { content:'👤'; position:absolute; top:2px; right:2px; font-size:10px;}
-
+        /* 監視カメラアニメーション */
+        @keyframes sweep { 0% { transform: rotate(-45deg); } 100% { transform: rotate(45deg); } }
+        .camera { transform-origin: top center; animation: sweep 3s infinite alternate ease-in-out; }
     </style>
 </head>
 <body>
 
 <div id="game-view">
-    <div id="viewport">
-        <div id="room-info">Cell - North</div>
-        <div id="map-btn" onclick="openMap()">🗺️</div>
-        
-        <div id="obj-container" style="width:100%; height:100%; position:relative;"></div>
-
-        <div class="view-btn view-left" onclick="rotateView(-1)">◀</div>
-        <div class="view-btn view-right" onclick="rotateView(1)">▶</div>
-        <div id="move-up" class="move-btn move-up" style="display:none;">▲</div>
-        <div id="move-down" class="move-btn move-down" style="display:none;">▼ 廊下へ</div>
+    <div id="header">
+        <span id="location-name">Cell B201</span>
+        <span id="timer">EV-LOCK: ACTIVE</span>
     </div>
+
+    <div id="scene">
+        </div>
 
     <div id="msg"></div>
 
     <div id="inventory">
-        <div class="slot" id="slot-0" onclick="selectItem(0)"></div>
-        <div class="slot" id="slot-1" onclick="selectItem(1)"></div>
-        <div class="slot" id="slot-2" onclick="selectItem(2)"></div>
-        <div class="slot" id="slot-3" onclick="selectItem(3)"></div>
+        <div class="slot" id="slot-0" onclick="selectSlot(0)"></div>
+        <div class="slot" id="slot-1" onclick="selectSlot(1)"></div>
+        <div class="slot" id="slot-2" onclick="selectSlot(2)"></div>
+        <div class="slot" id="slot-3" onclick="selectSlot(3)"></div>
+        <div class="slot" id="slot-4" onclick="selectSlot(4)"></div>
     </div>
 
     <div id="overlay">
-        <div class="close-overlay" onclick="closeOverlay()">×</div>
-        <div id="overlay-content"></div>
+        <div class="close-btn" onclick="closeOverlay()">×</div>
+        <div id="overlay-body"></div>
     </div>
 </div>
 
 <script>
-    // --- ゲーム状態 ---
+    // --- ゲームエンジン & 状態管理 ---
     const state = {
-        currentRoom: 'cell',
-        currentDir: 0, // 0:North, 1:East, 2:South, 3:West
-        inventory: [],
-        selectedItem: null,
-        // Flags
-        hasSpoon: false,
-        wallScraped: false,
-        cellDoorOpen: false,
-        mapSpawned: false, // マップがシャワー室に落ちたか
-        hasMap: false,
+        floor: 'B2', room: 'cell',
+        inventory: [], selected: null,
+        flags: {
+            hasWire: false, hasDirtyLens: false, lensCleaned: false,
+            powerRestored: false, evUnlocked: false, alarm: false,
+            cameraActive: true, gateCodeKnown: false
+        }
     };
 
-    const directions = ['North', 'East', 'South', 'West'];
-    const items = {
-        spoon: { id: 'spoon', name: 'スプーン' },
-        note: { id: 'note', name: '紙片[8241]' },
-        map: { id: 'map', name: '監獄地図' }
+    // --- アイテムデータ ---
+    const ITEMS = {
+        WIRE: { id: 'wire', name: '針金', desc: '細いが丈夫な金属。' },
+        LENS: { id: 'lens', name: '汚れたレンズ', desc: '埃で何も見えない。' },
+        CLEAN_LENS: { id: 'clean_lens', name: '綺麗なレンズ', desc: '光学読み取りが可能。' },
+        SPIRIT: { id: 'spirit', name: '消毒液', desc: '清掃に使える。' },
+        MASTER_KEY: { id: 'm_key', name: 'マスターキー', desc: '全フロア共通鍵。' }
     };
 
-    // =========================================
-    // --- マップ・部屋定義（全6エリア・視点対応） ---
-    // =========================================
-    // マップ構造（地図パズル用）
-    // [Yard] - [Main] - [Map?]
-    // [Storage] - [Ward] - [Duty]
-    //           [Cell]
-    
-    const rooms = {
-        // --- 独房 (Start) ---
-        cell: {
-            name: "独房 #101",
-            views: {
-                // 北面：ひび割れた壁
-                0: (c) => {
-                    addObj(c, 100, 100, 100, 100, 'crack interactive', tapWall, 'border:2px dashed #333;');
-                    if(state.wallScraped && !hasItem('note')) {
-                        addObj(c, 130, 150, 40, 20, 'paper', tapNote, '','8241');
-                    }
+    // --- ルームデータ (B2F: 独房階, B1F: 管理階, 1F: 出口) ---
+    const MAP = {
+        B2: {
+            cell: { 
+                title: "B2F: 独房", 
+                setup: () => {
+                    drawObj(150, 200, 100, 50, 'rect', {fill:'#333'}, () => {
+                        if(!state.flags.hasWire){ addItem(ITEMS.WIRE); msg("ベッドの裏から針金を見つけた。"); }
+                    });
+                    drawObj(300, 50, 40, 80, 'svg', {content:'<rect width="40" height="80" fill="#222"/><circle cx="20" cy="20" r="5" fill="red"/>'}, () => {
+                        if(state.selected === 'wire'){ msg("針金で回路をショートさせた！扉が開く。"); state.flags.cellOpen = true; updateRoom(); }
+                        else msg("電子ロックだ。細い道具があれば…");
+                    });
                 },
-                // 東面：鉄格子のドア
-                1: (c) => {
-                    addObj(c, 50, 0, 200, 400, 'door door-bars interactive', tapCellDoor);
-                    addObj(c, 260, 150, 30, 50, 'panel interactive', openKeypad);
-                    const ledColor = state.cellDoorOpen ? 'var(--led-green)' : 'var(--led-red)';
-                    addObj(c, 275, 158, 8, 8, 'led', null, `background:${ledColor};`);
+                nav: { e: 'hall_b2' }
+            },
+            hall_b2: {
+                title: "B2F: 廊下",
+                setup: () => {
+                    drawObj(200, 150, 80, 120, 'rect', {fill:'#444'}, () => {
+                        if(state.flags.evUnlocked) changeFloor('B1', 'ev_b1');
+                        else msg("エレベーター。電力が来ていない。");
+                    }, "ELEVATOR");
                 },
-                // 南面：ベッド
-                2: (c) => {
-                    addObj(c, 0, 250, 300, 100, 'bed interactive', tapBed);
-                },
-                // 西面：何もない壁
-                3: (c) => {
-                    addObj(c, 100, 150, 100, 50, '', null, 'background:#333; border-radius:20px;'); // 覗き窓
+                nav: { w: 'cell' }
+            }
+        },
+        B1: {
+            ev_b1: {
+                title: "B1F: エレベーターホール",
+                nav: { n: 'office', s: 'lab' },
+                setup: () => { msg("B1Fに到着した。監視が厳しいようだ。"); }
+            },
+            office: {
+                title: "B1F: 管理室",
+                nav: { s: 'ev_b1' },
+                setup: () => {
+                    drawObj(100, 100, 100, 60, 'rect', {fill:'#111', stroke:'#007aff'}, () => {
+                        if(state.flags.lensCleaned) {
+                            msg("レンズをスキャン。正門コード[ 5792 ]を読み取った。");
+                            state.flags.gateCodeKnown = true;
+                        } else msg("生体認証が必要だ。");
+                    }, "SCANNER");
+                    if(!state.flags.hasDirtyLens) drawObj(300, 200, 40, 40, 'rect', {fill:'#555'}, () => {
+                        addItem(ITEMS.LENS); state.flags.hasDirtyLens = true; updateRoom();
+                    }, "LENS");
                 }
             },
-            nav: { 1: { cond: () => state.cellDoorOpen, room: 'ward', dir: 1, msg: "▼ 廊下へ" } } // 東のドアから廊下へ
-        },
-        // --- 廊下 (Hub) ---
-        ward: {
-            name: "隔離病棟廊下",
-            views: {
-                0: (c) => addObj(c, 80, 50, 140, 300, 'door door-bars interactive', ()=>changeRoom('yard'), '','中庭へ'), // 北：中庭
-                1: (c) => addObj(c, 80, 50, 140, 300, 'door interactive', ()=>changeRoom('duty'), 'background:#442222;','看守詰所'), // 東：詰所
-                2: (c) => addObj(c, 120, 150, 60, 100, 'door interactive', ()=>changeRoom('cell','west'), 'background:#222;','独房'), // 南：自室
-                3: (c) => addObj(c, 80, 50, 140, 300, 'door interactive', ()=>changeRoom('storage'), 'background:#224422;','倉庫'), // 西：倉庫
-            }
-        },
-        // --- 看守詰所 (New Gimmick) ---
-        duty: {
-            name: "看守詰所",
-            views: {
-                0: (c) => {
-                    // 北面：謎のスイッチ
-                    const switchClass = state.mapSpawned ? 'switch on interactive' : 'switch interactive';
-                    addObj(c, 125, 100, 50, 80, switchClass, tapMapSwitch);
-                    addObj(c, 100, 200, 100, 20, '', null, 'background:#222; color:#666; font-size:10px; text-align:center;','MAP RELEASE');
-                },
-                1: (c) => {}, // 東
-                2: (c) => addObj(c, 80, 50, 140, 300, 'door interactive', ()=>changeRoom('ward','east'), 'background:#1a1a1a;','廊下へ'), // 南（戻る）
-                3: (c) => {}, // 西
-            }
-        },
-        // --- 倉庫 ---
-        storage: {
-            name: "地下倉庫",
-            views: {
-                1: (c) => addObj(c, 80, 50, 140, 300, 'door interactive', ()=>changeRoom('ward','west'), 'background:#1a1a1a;','廊下へ'), // 東（戻る）
-                3: (c) => {
-                     addObj(c, 50, 200, 200, 150, '', null, 'background:#333; border:4px solid #444;'); // ガラクタ
-                } 
-            }
-        },
-        // --- シャワー室 (Map Location) ---
-        shower: {
-            name: "シャワー室",
-            views: {
-                0: (c) => {}, // 北
-                1: (c) => addObj(c, 80, 50, 140, 300, 'door interactive', ()=>changeRoom('yard','east'), 'background:#1a1a1a;','中庭へ'), // 東（戻る）
-                2: (c) => {
-                    // 南面：地図が落ちる場所
-                    if(state.mapSpawned && !state.hasMap) {
-                        addObj(c, 120, 300, 60, 40, 'paper interactive', tapMap, 'background:#ccb; transform:rotate(10deg);','MAP');
-                    }
-                },
-                3: (c) => {}, // 西
-            }
-        },
-        // --- 中庭 (Exit) ---
-        yard: {
-            name: "中庭",
-            views: {
-                0: (c) => addObj(c, 0, 50, 300, 200, '', null, 'background:#111; border:5px solid #333;','脱出ゲート(LOCK)'), // 北：出口
-                1: (c) => addObj(c, 120, 100, 60, 150, 'door interactive', ()=>changeRoom('shower'), 'background:#222;','シャワー室'), // 東：シャワー
-                2: (c) => addObj(c, 80, 50, 140, 300, 'door door-bars interactive', ()=>changeRoom('ward','north'), '','廊下へ'), // 南（戻る）
-                3: (c) => {}, // 西
+            lab: {
+                title: "B1F: 医務室",
+                nav: { n: 'ev_b1' },
+                setup: () => {
+                    drawObj(200, 200, 50, 80, 'svg', {content:'<rect width="50" height="80" fill="#666"/><path d="M10,20 H40" stroke="white"/>'}, () => {
+                        addItem(ITEMS.SPIRIT); msg("消毒液を入手。");
+                    }, "MEDS");
+                }
             }
         }
     };
 
-    // =========================================
-    // --- コア・システム（描画・移動） ---
-    // =========================================
-    function initGame() {
-        renderScene();
-        updateInventoryUI();
-        showMsg("ここは...監獄か。操作は快適になったようだ。");
-    }
+    // --- システム関数 ---
+    function init() { updateRoom(); }
 
-    // 画面の描画
-    function renderScene() {
-        const room = rooms[state.currentRoom];
-        const container = document.getElementById('obj-container');
-        const info = document.getElementById('room-info');
+    function updateRoom() {
+        const scene = document.getElementById('scene');
+        scene.innerHTML = '';
+        const data = MAP[state.floor][state.room];
+        document.getElementById('location-name').innerText = data.title;
         
-        // クリーンアップ
-        container.innerHTML = '';
-        closeOverlay();
-
-        // 情報更新
-        info.innerText = `${room.name} - ${directions[state.currentDir]}`;
-
-        // オブジェクト描画
-        if(room.views[state.currentDir]) {
-            room.views[state.currentDir](container);
-        }
-
-        // ナビゲーションボタン（上下移動）の更新
-        updateNavButtons(room);
-    }
-
-    // 視点回転
-    function rotateView(delta) {
-        state.currentDir = (state.currentDir + delta + 4) % 4;
-        renderScene();
-    }
-
-    // 部屋移動
-    function changeRoom(newRoomId, startDirName = 'north') {
-        state.currentRoom = newRoomId;
-        // 入場時の向きを設定
-        state.currentDir = directions.findIndex(d => d.toLowerCase() === startDirName);
-        if(state.currentDir === -1) state.currentDir = 0;
-        
-        showMsg(`${rooms[newRoomId].name}に移動した。`);
-        renderScene();
-    }
-
-    // 上下移動ボタンの制御
-    function updateNavButtons(room) {
-        const upBtn = document.getElementById('move-up');
-        const downBtn = document.getElementById('move-down');
-        upBtn.style.display = 'none';
-        downBtn.style.display = 'none';
-
-        // 現在の部屋・向きにナビゲーションがあるか確認
-        if(room.nav && room.nav[state.currentDir]) {
-            const nav = room.nav[state.currentDir];
-            if(nav.cond()) {
-                downBtn.style.display = 'flex'; // 基本は「戻る」動作なので下ボタンに配置
-                downBtn.innerText = nav.msg;
-                downBtn.onclick = () => changeRoom(nav.room, nav.entryDir || 'north');
+        // ナビボタン
+        ['n','s','e','w'].forEach(d => {
+            if(data.nav && data.nav[d]) {
+                const btn = document.createElement('div');
+                btn.className = `nav ${d}`;
+                btn.innerHTML = d === 'n' ? '▲' : d === 's' ? '▼' : d === 'e' ? '▶' : '◀';
+                btn.onclick = () => { state.room = data.nav[d]; updateRoom(); };
+                scene.appendChild(btn);
             }
-        }
+        });
+        data.setup();
     }
 
-    // オブジェクト追加用ヘルパー
-    function addObj(container, x, y, w, h, className, action, css = '', text = '') {
+    function drawObj(x, y, w, h, type, opt, click, label="") {
         const el = document.createElement('div');
-        el.className = `obj ${className}`;
-        el.style.cssText = `left:${x}px; top:${y}px; width:${w}px; height:${h}px; ${css}`;
-        if (action) el.onclick = (e) => { e.stopPropagation(); action(); }; // クリックイベントの伝播防止
-        if (text) {
-            el.innerText = text;
-            el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
-            el.style.fontSize = '12px'; el.style.color = '#fff'; el.style.textAlign = 'center';
-        }
-        container.appendChild(el);
+        el.className = 'obj';
+        el.style.left = x+'px'; el.style.top = y+'px'; el.style.width = w+'px'; el.style.height = h+'px';
+        if(type === 'rect') el.style.background = opt.fill;
+        if(opt.stroke) el.style.border = `2px solid ${opt.stroke}`;
+        if(type === 'svg') el.innerHTML = `<svg width="100%" height="100%">${opt.content}</svg>`;
+        if(label) el.innerHTML += `<div style="font-size:8px; text-align:center; margin-top:5px;">${label}</div>`;
+        el.onclick = (e) => { e.stopPropagation(); click(); };
+        document.getElementById('scene').appendChild(el);
     }
 
-    // =========================================
-    // --- インベントリ & メッセージ ---
-    // =========================================
-    function showMsg(text) {
-        const m = document.getElementById('msg');
-        m.innerText = text;
-        m.style.opacity = 1;
-        clearTimeout(state.msgTimer);
-        state.msgTimer = setTimeout(() => { m.style.opacity = 0; }, 3000);
+    function msg(t) {
+        const m = document.getElementById('msg'); m.innerText = t; m.style.opacity = 1;
+        setTimeout(() => m.style.opacity = 0, 3000);
     }
 
-    function updateInventoryUI() {
-        for(let i=0; i<4; i++) {
-            const slot = document.getElementById(`slot-${i}`);
-            slot.innerText = state.inventory[i] ? state.inventory[i].name : "";
-            slot.classList.remove('selected');
-            if(state.selectedItem === i) slot.classList.add('selected');
-        }
-        // 地図ボタンの表示制御
-        document.getElementById('map-btn').style.display = state.hasMap ? 'flex' : 'none';
-    }
-
-    function selectItem(index) {
-        if(state.inventory[index]) {
-            state.selectedItem = (state.selectedItem === index) ? null : index;
-        } else {
-            state.selectedItem = null;
-        }
-        updateInventoryUI();
-    }
-
-    function getSelectedItem() { return state.inventory[state.selectedItem]; }
-    function consumeItem() { state.inventory.splice(state.selectedItem, 1); state.selectedItem = null; updateInventoryUI(); }
-    function hasItem(id) { return state.inventory.some(item => item.id === id); }
-
-    // =========================================
-    // --- アクション・ギミック ---
-    // =========================================
-    
-    // --- 共通 ---
-    function openOverlay(html) {
-        document.getElementById('overlay-content').innerHTML = html;
-        document.getElementById('overlay').style.display = 'flex';
-    }
-    function closeOverlay() { document.getElementById('overlay').style.display = 'none'; }
-
-    // --- 独房 (Cell) ---
-    function tapBed() {
-        if(!state.hasSpoon) {
-            showMsg("ベッドの下に「スプーン」が落ちていた。");
-            state.inventory.push(items.spoon);
-            state.hasSpoon = true;
-            updateInventoryUI();
-        } else { showMsg("薄汚れたベッドだ。"); }
-    }
-
-    function tapWall() {
-        const item = getSelectedItem();
-        if(item && item.id === 'spoon') {
-            if(!state.wallScraped) {
-                showMsg("スプーンで壁を削った。何か挟まっている。");
-                state.wallScraped = true;
-                renderScene(); // 描画更新
-            } else { showMsg("もう削れる場所はない。"); }
-        } else { showMsg("壁のひび割れだ。何か道具があれば...。"); }
-    }
-
-    function tapNote() {
-        showMsg("壁の隙間から「紙片」を手に入れた。数字が書いてある。");
-        state.inventory.push(items.note);
-        updateInventoryUI();
-        renderScene();
-    }
-
-    function tapCellDoor() {
-        if(state.cellDoorOpen) { showMsg("ドアは開いている。廊下へ出よう（画面下のボタン）。"); }
-        else { showMsg("固く閉ざされている。横のパネルが怪しい。"); }
-    }
-
-    // キーパッド
-    let inputCode = "";
-    function openKeypad() {
-        if(state.cellDoorOpen) return;
-        const html = `
-            <div style="margin-bottom:15px; text-align:center; color:#aaa;">ENTER CODE</div>
-            <div class="display" id="code-display">----</div>
-            <div class="keypad">
-                ${[1,2,3,4,5,6,7,8,9].map(n => `<div class="key" onclick="pressKey('${n}')">${n}</div>`).join('')}
-                <div class="key" style="background:#422" onclick="closeOverlay()">X</div>
-                <div class="key" onclick="pressKey('0')">0</div>
-                <div class="key" style="background:#242" onclick="checkCode()">OK</div>
-            </div>`;
-        openOverlay(html);
-    }
-    function pressKey(num) { if(inputCode.length < 4) { inputCode += num; document.getElementById('code-display').innerText = inputCode.padEnd(4, '-'); } }
-    function checkCode() {
-        if(inputCode === "8241") {
-            showMsg("ロックが解除された！");
-            state.cellDoorOpen = true; closeOverlay(); renderScene();
-        } else {
-            const disp = document.getElementById('code-display'); disp.classList.add('shake');
-            setTimeout(() => disp.classList.remove('shake'), 400); inputCode = "";
-            document.getElementById('code-display').innerText = "----";
+    function addItem(item) {
+        if(state.inventory.length < 5) {
+            state.inventory.push(item);
+            renderInv();
         }
     }
 
-    // --- 看守詰所 (Duty) ---
-    function tapMapSwitch() {
-        if(!state.mapSpawned) {
-            showMsg("スイッチを押した。遠くで『カシャコン』と音がした。");
-            state.mapSpawned = true;
-            renderScene(); // スイッチの外見更新
-        } else { showMsg("スイッチは既に押されている。"); }
+    function renderInv() {
+        for(let i=0; i<5; i++) {
+            const s = document.getElementById(`slot-${i}`);
+            s.innerText = state.inventory[i] ? state.inventory[i].name : '';
+            s.classList.remove('selected');
+            if(state.selected === (state.inventory[i] ? state.inventory[i].id : null)) s.classList.add('selected');
+        }
     }
 
-    // --- シャワー室 (Shower) ---
-    function tapMap() {
-        showMsg("床に落ちていた「監獄地図」を拾った。これで構造がわかる。");
-        state.hasMap = true;
-        state.inventory.push(items.map);
-        updateInventoryUI();
-        renderScene();
-    }
-
-    // --- マップ機能 ---
-    function openMap() {
-        // 地図パズル用構造
-        // [Yard] - [Main] - [Map?]
-        // [Storage] - [Ward] - [Duty]
-        //           [Cell]
-        const mapData = [
-            ['yard', 'gate', 'shower'],
-            ['storage', 'ward', 'duty'],
-            [null, 'cell', null]
-        ];
+    function selectSlot(i) {
+        const item = state.inventory[i];
+        if(!item) return;
         
-        let gridHtml = '';
-        for(let r=0; r<3; r++) {
-            for(let c=0; c<3; c++) {
-                const roomId = mapData[r][c];
-                if(roomId === null) {
-                    gridHtml += '<div></div>'; // 空白
-                } else if(roomId === 'gate') {
-                    gridHtml += '<div class="map-cell" style="background:#111;">正門</div>';
-                } else {
-                    const roomName = rooms[roomId] ? rooms[roomId].name.substring(0,2) : '??';
-                    const currentClass = (state.currentRoom === roomId) ? 'current' : '';
-                    gridHtml += `<div class="map-cell ${currentClass}">${roomName}</div>`;
-                }
-            }
+        // 合成ロジック: 消毒液を選択中にレンズをタップ
+        if(state.selected === 'spirit' && item.id === 'lens') {
+            state.inventory = state.inventory.filter(x => x.id !== 'lens' && x.id !== 'spirit');
+            state.inventory.push(ITEMS.CLEAN_LENS);
+            state.flags.lensCleaned = true;
+            state.selected = null;
+            msg("レンズを消毒液で拭いた。綺麗になった。");
+        } else {
+            state.selected = (state.selected === item.id) ? null : item.id;
         }
-
-        const html = `
-            <div style="margin-bottom:15px; text-align:center; color:#aaa;">監獄全体図</div>
-            <div class="map-grid">${gridHtml}</div>
-            <div style="font-size:10px; color:#888; margin-top:10px;">👤 = 現在地</div>
-        `;
-        openOverlay(html);
+        renderInv();
     }
 
-    // 開始
-    window.onload = initGame;
-</script>
+    function changeFloor(f, r) { state.floor = f; state.room = r; updateRoom(); }
+    
+    // エレベーターの強制復旧（B2F廊下の隠しボタンなど）
+    window.addEventListener('keydown', (e) => {
+        if(e.key === 'p') { state.flags.evUnlocked = true; msg("デバッグ：電力が復旧した。"); updateRoom(); }
+    });
 
+    init();
+</script>
 </body>
 </html>
