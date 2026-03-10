@@ -14,13 +14,13 @@
         #scene { flex: 1; position: relative; background: #1a1a1a; overflow: hidden; transition: 0.5s; }
         #room-title { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 4px 12px; border-radius: 4px; font-size: 14px; z-index: 50; border-left: 2px solid var(--led-blue); }
         
-        #timer-display { position: absolute; top: 10px; right: 10px; background: rgba(180, 0, 0, 0.8); padding: 5px 10px; border-radius: 4px; font-size: 16px; font-weight: bold; color: white; z-index: 200; display: none; border: 1px solid #ff0000; box-shadow: 0 0 10px red; }
+        #timer-display { position: absolute; top: 10px; right: 10px; background: rgba(180, 0, 0, 0.8); padding: 5px 10px; border-radius: 4px; font-size: 16px; font-weight: bold; color: white; z-index: 200; display: none; border: 1px solid #ff0000; }
 
-        #inventory { height: 85px; background: #1a1a1a; display: flex; gap: 8px; padding: 10px; border-top: 2px solid #444; }
-        .slot { flex: 1; height: 65px; background: #2c2c2e; border: 2px solid #555; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; cursor: pointer; color: #aaa; overflow: hidden; }
+        #inventory { height: 85px; background: #1a1a1a; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 10px; border-top: 2px solid #444; }
+        .slot { height: 65px; background: #2c2c2e; border: 2px solid #555; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; text-align: center; cursor: pointer; color: #aaa; word-break: break-all; }
         .slot.selected { border-color: var(--led-blue); box-shadow: 0 0 10px var(--led-blue); background: #3a3a3c; color: #fff; }
 
-        #msg { position: absolute; bottom: 110px; left: 20px; right: 20px; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; font-size: 13px; border-left: 4px solid var(--led-blue); opacity: 0; transition: 0.3s; z-index: 100; pointer-events: none; white-space: pre-wrap; }
+        #msg { position: absolute; bottom: 110px; left: 20px; right: 20px; background: rgba(0,0,0,0.95); padding: 15px; border-radius: 8px; font-size: 13px; border-left: 4px solid var(--led-blue); opacity: 0; transition: 0.3s; z-index: 100; pointer-events: none; white-space: pre-wrap; }
 
         .nav-btn { position: absolute; width: 55px; height: 55px; background: rgba(255,255,255,0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; color: white; z-index: 60; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); }
         .nav-n { top: 70px; left: calc(50% - 27px); }
@@ -55,6 +55,8 @@
         <div class="slot" id="slot-1" onclick="selectItem(1)"></div>
         <div class="slot" id="slot-2" onclick="selectItem(2)"></div>
         <div class="slot" id="slot-3" onclick="selectItem(3)"></div>
+        <div class="slot" id="slot-4" onclick="selectItem(4)"></div>
+        <div class="slot" id="slot-5" onclick="selectItem(5)"></div>
     </div>
     <div id="overlay">
         <div class="close-overlay" onclick="closeOverlay()">×</div>
@@ -69,7 +71,8 @@
         cellDoorOpen: false, hasSpoon: false, wallScraped: false,
         hasSilverKey: false, hasStaffCard: false, wardPowerOn: false,
         mainGateOpen: false, alarmTriggered: false, alarmSeconds: 15,
-        hasFlashlight: false, laserActive: true, gameEnded: false
+        hasFlashlight: false, laserActive: true, gameEnded: false,
+        gateOiled: false, hasOil: false
     };
 
     const items = {
@@ -78,13 +81,13 @@
         sKey: { id: 'skey', name: '銀の鍵' },
         card: { id: 'card', name: '職員ID証' },
         rKey: { id: 'rkey', name: '錆びた鍵' },
-        torch: { id: 'torch', name: 'ペンライト' }
+        torch: { id: 'torch', name: 'ペンライト' },
+        oil: { id: 'oil', name: '油差し' }
     };
 
     function initRandom() {
         state.cellCode = Math.floor(1000 + Math.random() * 9000).toString();
-        const words = ["dark", "cold", "exit", "free", "fear", "hope", "evil", "jail"];
-        state.pcPass = words[Math.floor(Math.random() * words.length)];
+        state.pcPass = Math.floor(100 + Math.random() * 899).toString();
         const colors = ["cyan", "magenta", "yellow"];
         state.laserSequence = [...colors].sort(() => Math.random() - 0.5);
     }
@@ -99,6 +102,18 @@
                 const pColor = state.cellDoorOpen ? 'var(--led-green)' : 'var(--led-red)';
                 addDivObj(c, 270, 200, 40, 60, 'background:#111; border:2px solid #333;', openKeypad);
                 addDivObj(c, 285, 210, 10, 10, `background:${pColor}; border-radius:50%; box-shadow:0 0 5px ${pColor};`);
+                addDivObj(c, 50, 350, 80, 40, '', () => changeRoom('duct'), "▼下へ");
+            }
+        },
+        duct: {
+            title: "換気ダクト", bg: "#0a0a0a", nav: { n: 'cell', s: 'ward' },
+            setup: (c) => {
+                const it = getSelectedItem();
+                if(!it || it.id !== 'torch') {
+                    addDivObj(c, 0, 0, 500, 500, 'background:#000; color:#333;', null, "暗くて何も見えない...");
+                } else {
+                    addDivObj(c, 200, 200, 100, 100, 'color:#555;', null, "ネズミが走っている...");
+                }
             }
         },
         ward: {
@@ -109,7 +124,7 @@
             title: "図書室", bg: "#1a120b", nav: { s: 'ward' },
             setup: (c) => {
                 addDivObj(c, 50, 100, 150, 250, 'background:#3d2b1f; border:2px solid #5d4037;', () => showMsg("本がぎっしり詰まっている。"), "本棚");
-                addDivObj(c, 300, 120, 120, 180, 'background:#eee; color:#000; font-size:10px; padding:8px; transform:rotate(2deg);', null, `重要：\nPCパスワードは\n「${state.pcPass.split('').reverse().join('')}」の\n逆読みである。`);
+                addDivObj(c, 300, 120, 120, 180, 'background:#fdf5e6; color:#432; font-size:10px; padding:8px; border:1px solid #d2b48c;', null, `メモ：\n管理室PASSは\n「${state.pcPass}」\nと書き留めてある。`);
             }
         },
         security: {
@@ -120,10 +135,7 @@
         },
         cafeteria: {
             title: "中央食堂", bg: "#1a1a1a", nav: { n: 'ward', s: 'kitchen', e: 'infirmary', w: 'corridor' },
-            setup: (c) => { 
-                addDivObj(c, 100, 220, 300, 80, 'background:#333; border-radius:5px;', null, "TABLE"); 
-                // 北ボタンの上書きロジックは updateNavButtons で行う
-            }
+            setup: (c) => { addDivObj(c, 100, 220, 300, 80, 'background:#333; border-radius:5px;', null, "TABLE"); }
         },
         kitchen: {
             title: "厨房", bg: "#222", nav: { n: 'cafeteria' },
@@ -134,9 +146,7 @@
         },
         infirmary: {
             title: "医務室", bg: "#202a20", nav: { w: 'cafeteria', e: 'hidden' },
-            setup: (c) => {
-                addDivObj(c, 350, 100, 100, 200, 'background:#444; border:1px solid #555;', tapCabinet, "薬品棚");
-            }
+            setup: (c) => { addDivObj(c, 350, 100, 100, 200, 'background:#444; border:1px solid #555;', tapCabinet, "薬品棚"); }
         },
         hidden: {
             title: "隠し部屋", bg: "#050505", nav: { w: 'infirmary' },
@@ -145,7 +155,7 @@
                 if(it && it.id === 'torch') {
                     addDivObj(c, 100, 150, 300, 100, 'color:#0f0; text-shadow:0 0 8px #0f0; font-size:18px;', null, `LASER ORDER:\n${state.laserSequence.join(' > ').toUpperCase()}`);
                 }
-                addSvgObj(c, 'lever', 30, 250, 60, 100, '<rect x="25" y="0" width="10" height="100" fill="#444"/><circle cx="30" cy="0" r="15" fill="#666"/>', () => { showMsg("レバーを引いた。ドアの電子ロックが解除された。"); changeRoom('hidden'); });
+                addSvgObj(c, 'lever', 30, 250, 60, 100, '<rect x="25" y="0" width="10" height="100" fill="#444"/><circle cx="30" cy="0" r="15" fill="#666"/>', () => { showMsg("レバーを引いた。ドアの電子ロックが解除された。"); });
                 if(state.alarmTriggered && state.alarmSeconds <= 0) showMsg("（外から看守の足音が聞こえる...）\nカツン... カツン...");
             }
         },
@@ -168,13 +178,20 @@
                     }
                     addDivObj(c, 440, 220, 50, 80, 'background:#222; border:2px solid #555;', openLaserPanel, "LOCK");
                 } else {
-                    updateNavButtons({ e: 'cafeteria', w: 'maingate' });
+                    updateNavButtons({ e: 'cafeteria', w: 'storage' });
                     addDivObj(c, 100, 200, 300, 50, 'color:var(--led-green);', null, "SYSTEM OFFLINE");
                 }
             }
         },
+        storage: {
+            title: "資材倉庫", bg: "#222", nav: { e: 'corridor', w: 'maingate' },
+            setup: (c) => {
+                addDivObj(c, 50, 150, 150, 150, 'background:#333; border:3px solid #444;', null, "コンテナ");
+                if(!state.hasOil) addSvgObj(c, 'oil', 380, 300, 50, 50, '<path d="M10,40 L40,40 L25,10 Z" fill="#654"/>', tapOil);
+            }
+        },
         maingate: {
-            title: "施設正門", bg: "#000", nav: { e: 'corridor' },
+            title: "施設正門", bg: "#000", nav: { e: 'storage' },
             setup: (c) => {
                 addDivObj(c, 50, 50, 400, 400, 'border:10px double #222;', null, "GATE");
                 addDivObj(c, 430, 220, 30, 60, 'background:#111; border:2px solid var(--led-blue);', tapKeyhole, "KEY");
@@ -182,29 +199,19 @@
         }
     };
 
-    function updateNavButtons(nav) {
+    function updateNavButtons(overrideNav = null) {
+        const nav = overrideNav || rooms[state.currentRoom].nav;
         ['n', 's', 'e', 'w'].forEach(d => {
             const b = document.getElementById(`nav-${d}`);
             let target = nav[d];
             
-            // 食堂（cafeteria）から北（n）へ行く時の特別ルール
             if(state.currentRoom === 'cafeteria' && d === 'n') {
-                const it = getSelectedItem();
-                if(it && it.id === 'card') {
-                    target = 'duty'; // IDカードを持っていれば詰所へ
-                } else {
-                    target = 'ward'; // 持っていなければ廊下へ
-                }
+                target = (getSelectedItem()?.id === 'card') ? 'duty' : 'ward';
             }
 
             if(target) {
                 b.style.display = 'flex';
-                b.onclick = () => {
-                    if(state.currentRoom === 'cafeteria' && d === 'n' && target === 'duty') {
-                        showMsg("IDカードでセキュリティを突破した。");
-                    }
-                    changeRoom(target);
-                };
+                b.onclick = () => changeRoom(target);
             } else {
                 b.style.display = 'none';
             }
@@ -212,13 +219,10 @@
     }
 
     function changeRoom(id) {
-        if(id === 'security' && !state.hasSilverKey) { showMsg("ドアが施錠されている。銀の鍵が必要だ。"); return; }
-        // 詰所への直接チェックは updateNavButtons に統合したが念のため
+        if(id === 'security' && !state.hasSilverKey) { showMsg("「銀の鍵」が必要だ。"); return; }
         if(id === 'duty' && (!getSelectedItem() || getSelectedItem().id !== 'card')) {
-            showMsg("職員ID証をアイテム欄で「選択」してから進め。");
-            return;
+            showMsg("「職員ID証」を選択して進め。"); return;
         }
-        
         state.currentRoom = id; const r = rooms[id]; const s = document.getElementById('scene');
         s.innerHTML = `<div id="room-title">${r.title}</div>`; s.style.background = r.bg;
         r.setup(s); updateNavButtons(r.nav);
@@ -241,8 +245,6 @@
         clearTimeout(state.msgTimer); state.msgTimer = setTimeout(() => m.style.opacity = 0, 4000);
     }
 
-    // ギミック系
-    let inputCode = "";
     function openKeypad() {
         if(state.cellDoorOpen) return;
         let h = `<div class="display" id="code-disp">----</div><div class="keypad">`;
@@ -279,7 +281,9 @@
         state.laserInput.push(c); document.getElementById('l-status').innerText = `INPUT: ${state.laserInput.length}/3`;
         if(state.laserInput.length === 3) {
             if(JSON.stringify(state.laserInput) === JSON.stringify(state.laserSequence)) {
-                state.laserActive = false; closeOverlay(); changeRoom('corridor'); showMsg("レーザーを無効化した。");
+                state.laserActive = false; closeOverlay(); 
+                changeRoom('corridor'); // ここで部屋のセットアップを再走させ、ボタンを更新する
+                showMsg("レーザーを無効化した。");
             } else { showMsg("警報！"); triggerAlarm(); closeOverlay(); }
         }
     }
@@ -294,7 +298,7 @@
                 if(state.currentRoom !== 'hidden' && !state.gameEnded) triggerEnd();
                 else if(state.currentRoom === 'hidden') {
                     document.getElementById('timer-display').style.display = 'none';
-                    showMsg("看守たちは去ったようだ。"); changeRoom('hidden');
+                    showMsg("看守たちは去ったようだ。");
                 }
             }
         }, 1000);
@@ -302,13 +306,23 @@
 
     function tapWall() { if(getSelectedItem()?.id === 'spoon' && !state.wallScraped) { state.inventory.push(items.note); state.wallScraped = true; updateInventoryUI(); showMsg("「汚れた紙片」を入手。"); } else showMsg("壁は頑丈だ。"); }
     function tapBed() { if(!state.hasSpoon) { state.hasSpoon = true; state.inventory.push(items.spoon); updateInventoryUI(); showMsg("「スプーン」を入手。"); } }
-    function tapCellDoor() { if(state.cellDoorOpen) changeRoom('ward'); else showMsg("パネルにコードを入力しろ。"); }
-    function tapSilverKey() { state.hasSilverKey = true; state.inventory.push(items.sKey); updateInventoryUI(); changeRoom('kitchen'); showMsg("「銀の鍵」を入手。"); }
-    function tapIdCard() { state.hasStaffCard = true; state.inventory.push(items.card); updateInventoryUI(); changeRoom('security'); showMsg("「職員ID証」を入手。これで詰所に入れる。"); }
-    function tapCabinet() { if(!state.hasFlashlight) { state.hasFlashlight = true; state.inventory.push(items.torch); updateInventoryUI(); showMsg("「ペンライト」を入手。"); } }
+    function tapCellDoor() { if(state.cellDoorOpen) changeRoom('ward'); else showMsg("ロックされている。"); }
+    function tapSilverKey() { state.hasSilverKey = true; state.inventory.push(items.sKey); updateInventoryUI(); changeRoom('kitchen'); showMsg("「銀の鍵」入手。"); }
+    function tapIdCard() { state.hasStaffCard = true; state.inventory.push(items.card); updateInventoryUI(); changeRoom('security'); showMsg("「職員ID証」入手。"); }
+    function tapCabinet() { if(!state.hasFlashlight) { state.hasFlashlight = true; state.inventory.push(items.torch); updateInventoryUI(); showMsg("「ペンライト」入手。"); } }
     function tapBreaker() { state.wardPowerOn = true; changeRoom('duty'); showMsg("電力が復旧した！"); }
     function tapLocker() { if(!state.hasRustyKey) { state.hasRustyKey = true; state.inventory.push(items.rKey); updateInventoryUI(); triggerAlarm(); showMsg("「錆びた鍵」入手！警報が鳴った！隠れろ！"); } }
-    function tapKeyhole() { if(state.mainGateOpen && getSelectedItem()?.id === 'rkey') triggerWin(); else showMsg("ゲートが開かない。"); }
+    function tapOil() { state.hasOil = true; state.inventory.push(items.oil); updateInventoryUI(); changeRoom('storage'); showMsg("「油差し」を入手。"); }
+    function tapKeyhole() { 
+        const it = getSelectedItem();
+        if(!state.mainGateOpen) { showMsg("PCでゲートのロックを解除しろ。"); }
+        else if(!state.gateOiled) {
+            if(it?.id === 'oil') { state.gateOiled = true; showMsg("鍵穴に油を差した。これで鍵が回る。"); }
+            else { showMsg("錆びていて鍵が回らない。油が必要だ。"); }
+        }
+        else if(it?.id === 'rkey') { triggerWin(); }
+        else { showMsg("「錆びた鍵」が必要だ。"); }
+    }
 
     function selectItem(i) {
         if(state.inventory[i]) {
@@ -318,14 +332,12 @@
             }
         } else state.selectedItem = null;
         updateInventoryUI();
-        updateNavButtons(rooms[state.currentRoom].nav); // 選択状態が変わったのでボタンを更新
+        updateNavButtons();
     }
-    
-    function updateInventoryUI() { for(let i=0; i<4; i++) { const s = document.getElementById(`slot-${i}`); s.innerText = state.inventory[i]?.name || ""; s.classList.toggle('selected', state.selectedItem === i); } }
+    function updateInventoryUI() { for(let i=0; i<6; i++) { const s = document.getElementById(`slot-${i}`); s.innerText = state.inventory[i]?.name || ""; s.classList.toggle('selected', state.selectedItem === i); } }
     function getSelectedItem() { return state.inventory[state.selectedItem]; }
     function openOverlay(h) { document.getElementById('overlay-content').innerHTML = h; document.getElementById('overlay').style.display = 'flex'; }
     function closeOverlay() { document.getElementById('overlay').style.display = 'none'; inputCode = ""; }
-
     function triggerWin() { state.gameEnded = true; alert("脱出成功！"); location.reload(); }
     function triggerEnd() { state.gameEnded = true; alert("看守に見つかった！"); location.reload(); }
 
