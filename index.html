@@ -358,20 +358,26 @@
     }
 
     function updateInventoryUI() { 
-        for(let i=0; i<6; i++) { 
-            const s = document.getElementById(`slot-${i}`); 
-            s.innerText = state.inventory[i]?.name || ""; 
-            s.className = `slot ${state.selectedItem === i ? 'selected' : ''}`;
-            addEvent(s, () => {
-                if(state.inventory[i]) {
-                    state.selectedItem = (state.selectedItem === i) ? null : i;
-                    if(state.selectedItem !== null && state.inventory[i].id === 'note') showMsg(`紙片には『${state.cellCode}』。`);
-                } else state.selectedItem = null;
-                updateInventoryUI(); updateNavButtons();
-            });
-        } 
-    }
+    // ループの条件を i < 8 に変更
+    for(let i = 0; i < 8; i++) { 
+        const s = document.getElementById(`slot-${i}`); 
+        if(!s) continue; // 安全のためのチェック
 
+        s.innerText = state.inventory[i]?.name || ""; 
+        s.className = `slot ${state.selectedItem === i ? 'selected' : ''}`;
+        
+        addEvent(s, () => {
+            if(state.inventory[i]) {
+                state.selectedItem = (state.selectedItem === i) ? null : i;
+                if(state.selectedItem !== null && state.inventory[i].id === 'note') showMsg(`紙片には『${state.cellCode}』。`);
+            } else {
+                state.selectedItem = null;
+            }
+            updateInventoryUI(); 
+            updateNavButtons();
+        });
+    } 
+}
     function getSelectedItem() { return state.inventory[state.selectedItem]; }
     function openOverlay(h) { document.getElementById('overlay-content').innerHTML = h; document.getElementById('overlay').style.display = 'flex'; }
     function closeOverlay() { document.getElementById('overlay').style.display = 'none'; inputCode = ""; }
