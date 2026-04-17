@@ -3,206 +3,306 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Slot Car Championship</title>
+    <title>2D Slot Car Physics</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; touch-action: none; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; z-index: 10; text-shadow: 2px 2px #000; }
-        .label { font-size: 14px; color: #aaa; }
-        .value { font-size: 24px; margin-bottom: 10px; }
+        body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; touch-action: none; color: white; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; z-index: 10; text-shadow: 2px 2px #000; }
+        .label { font-size: 12px; color: #aaa; }
+        .value { font-size: 20px; margin-bottom: 8px; }
+        #speed-gauge { width: 120px; height: 8px; background: #444; border: 1px solid #fff; }
+        #speed-bar { width: 0%; height: 100%; background: lime; transition: background 0.1s; }
+        #g-gauge { width: 120px; height: 8px; background: #444; border: 1px solid #fff; margin-top: 4px; position: relative;}
+        #g-pointer { position: absolute; top:0; left: 50%; width: 4px; height: 100%; background: white; transform: translateX(-50%); }
         
-        #speed-gauge { width: 150px; height: 10px; background: #222; border: 1px solid #fff; position: relative; }
-        #speed-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #0f0, #ff0, #f00); }
-        
-        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 48px; display: none; text-align: center; z-index: 20; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; width: 80%; }
-        #start-signal { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
-        .light { width: 40px; height: 40px; border-radius: 50%; background: #222; }
+        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; display: none; text-align: center; z-index: 20; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; width: 80%; border: 2px solid white;}
     </style>
 </head>
 <body>
     <div id="ui">
-        <div class="label">LAP</div>
-        <div class="value" id="lap-text">1 / 3</div>
+        <div class="label">LAP</div><div class="value" id="lap-text">1 / 3</div>
         <div class="label">SPEED</div>
         <div id="speed-gauge"><div id="speed-bar"></div></div>
+        <div class="label">LATERAL G (横G)</div>
+        <div id="g-gauge"><div id="g-pointer"></div></div>
     </div>
-    
-    <div id="start-signal">
-        <div class="light" id="L1"></div>
-        <div class="light" id="L2"></div>
-        <div class="light" id="L3"></div>
-    </div>
-
     <div id="msg"></div>
+    <canvas id="gameCanvas"></canvas>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // --- 設定 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, centerX, centerY, trackScale;
+
+        // --- ゲーム設定 ---
         const TOTAL_LAPS = 3;
-        const TRACK_RADIUS = 25;
-        const CURVE_LIMIT = 0.23;
-        let gameState = 'STARTING'; // STARTING, RACING, FINISHED
-        
-        const scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0x000000, 30, 100);
-        
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+        let gameState = 'RACING'; // RACING, FINISHED
 
-        // ライティング
-        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(ambient);
-        const spotLight = new THREE.SpotLight(0xffffff, 1);
-        spotLight.position.set(0, 50, 0);
-        scene.add(spotLight);
+        // --- ★新規・速度物理パラメータ★ ---
+        const P_PHYSICS = {
+            accel_torque: 0.0015,     // 根本的な加速力（トルク）
+            max_speed_cap: 0.04,     // 理論上の最高速
+            drag_coeff: 0.96,        // 空気抵抗（毎フレーム残る速度の割合。低いと失速しやすい）
+            friction_base: 0.0001,   // 基礎摩擦（常に減速させる力）
+            g_limit: 0.18            // 横Gの限界点（これを超えるとコースアウト）
+        };
 
-        // コース（少し複雑な形状に）
-        const curve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(0, 0, 40),
-            new THREE.Vector3(30, 0, 20),
-            new THREE.Vector3(20, 0, -20),
-            new THREE.Vector3(0, 0, -35),
-            new THREE.Vector3(-25, 0, -10),
-            new THREE.Vector3(-15, 0, 20)
-        ], true);
+        const CPU_SPEED = 0.008; // CPUは一定速度
 
-        const trackPoints = curve.getPoints(100);
-        const trackGeo = new THREE.BufferGeometry().setFromPoints(trackPoints);
-        const trackMat = new THREE.LineBasicMaterial({ color: 0x333333 });
-        const trackLine = new THREE.Line(trackGeo, trackMat);
-        scene.add(trackLine);
+        // プレイヤー状態
+        let p = {
+            pos: 0,          // コース上の位置 (0.0 ～ 1.0)
+            speed: 0,        // 現在速度
+            lap: 1,
+            isOut: false,
+            slipAngle: 0     // コースアウト時の演出用
+        };
 
-        // スタートライン
-        const finishLine = new THREE.Mesh(
-            new THREE.PlaneGeometry(10, 2),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
-        );
-        finishLine.rotation.x = Math.PI/2;
-        const startPt = curve.getPoint(0);
-        finishLine.position.set(startPt.x, 0.01, startPt.z);
-        scene.add(finishLine);
+        // CPU状態
+        let e = { pos: 0, lap: 1, finished: false };
 
-        function createCar(color) {
-            const group = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1.8), new THREE.MeshStandardMaterial({ color, metalness: 0.8, roughness: 0.2 }));
-            body.position.y = 0.3;
-            group.add(body);
-            return group;
+        let isButtonPressed = false;
+
+        // コース形状定義（2D画面に合わせた楕円ベースのサーキット）
+        function getTrackPoint(t, offset = 0) {
+            t = t % 1;
+            const angle = t * Math.PI * 2;
+            
+            // 楕円を少し歪ませてサーキットっぽくする
+            let rX = (width * 0.4) * (1 + Math.sin(angle * 2) * 0.1);
+            let rY = (height * 0.3);
+
+            // コースの内側・外側のオフセット
+            rX += offset;
+            rY += offset;
+
+            return {
+                x: centerX + Math.cos(angle) * rX,
+                y: centerY + Math.sin(angle) * rY,
+                angle: angle
+            };
         }
 
-        const playerCar = createCar(0x00ffff);
-        const enemyCar = createCar(0xff0044);
-        scene.add(playerCar, enemyCar);
+        // ある地点の曲率（カーブのきつさ）を簡易取得
+        function getCurvature(t) {
+            const delta = 0.001;
+            const p1 = getTrackPoint(t - delta);
+            const p2 = getTrackPoint(t);
+            const p3 = getTrackPoint(t + delta);
 
-        // エフェクト（火花）
-        const sparkGeo = new THREE.SphereGeometry(0.1);
-        const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
-        const spark = new THREE.Mesh(sparkGeo, sparkMat);
-        spark.visible = false;
-        scene.add(spark);
+            // 2つのベクトルの角度差から曲率を求める
+            const v1 = { x: p2.x - p1.x, y: p2.y - p1.y };
+            const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+            
+            const a1 = Math.atan2(v1.y, v1.x);
+            const a2 = Math.atan2(v2.y, v2.x);
+            
+            let diff = a2 - a1;
+            // 角度の不連続点を補正
+            if (diff > Math.PI) diff -= Math.PI * 2;
+            if (diff < -Math.PI) diff += Math.PI * 2;
 
-        let pPos = 0, pSpeed = 0, pLap = 1;
-        let ePos = 0, eSpeed = 0.0038;
-        let isAccelerating = false;
+            return Math.abs(diff); // 値が大きいほど急カーブ
+        }
 
-        // 入力制御
-        const inputStart = () => { if(gameState === 'RACING') isAccelerating = true; if(gameState === 'FINISHED') location.reload(); };
-        const inputEnd = () => { isAccelerating = false; };
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 入力設定
+        const inputStart = () => { if(gameState === 'FINISHED') location.reload(); isButtonPressed = true; };
+        const inputEnd = () => { isButtonPressed = false; };
         window.addEventListener('touchstart', (e) => { e.preventDefault(); inputStart(); }, {passive: false});
         window.addEventListener('touchend', inputEnd);
         window.addEventListener('mousedown', inputStart);
         window.addEventListener('mouseup', inputEnd);
 
-        // カウントダウン演出
-        function startCountdown() {
-            setTimeout(() => { document.getElementById('L1').style.background = '#f00'; }, 1000);
-            setTimeout(() => { document.getElementById('L2').style.background = '#f00'; }, 2000);
-            setTimeout(() => { 
-                document.getElementById('L3').style.background = '#0f0';
-                gameState = 'RACING';
-                setTimeout(() => { document.getElementById('start-signal').style.display = 'none'; }, 1000);
-            }, 3000);
-        }
-        startCountdown();
-
         function animate() {
             requestAnimationFrame(animate);
-            
+            ctx.clearRect(0, 0, width, height);
+
+            drawTrack();
+
             if (gameState === 'RACING') {
-                // プレイヤーロジック
-                if (isAccelerating) pSpeed += 0.0007;
-                else pSpeed *= 0.97;
-                
-                const oldPos = pPos;
-                pPos += pSpeed;
-
-                // ラップ判定
-                if (Math.floor(pPos) > Math.floor(oldPos)) {
-                    pLap++;
-                    if (pLap > TOTAL_LAPS) endGame("YOU WIN!");
-                    else document.getElementById('lap-text').innerText = `${pLap} / ${TOTAL_LAPS}`;
-                }
-
-                // コースアウト判定
-                const tangent = curve.getTangent(pPos % 1);
-                const nextTangent = curve.getTangent((pPos + 0.01) % 1);
-                const curvature = tangent.angleTo(nextTangent) * 50; // カーブの急さを計算
-
-                if (curvature > 0.8 && pSpeed > 0.15) {
-                    spark.visible = true;
-                    spark.position.copy(playerCar.position);
-                    if (pSpeed > CURVE_LIMIT) endGame("COURSE OUT!");
-                } else {
-                    spark.visible = false;
-                }
-
-                // CPU
-                const oldEPos = ePos;
-                ePos += eSpeed;
-                if (Math.floor(ePos) > Math.floor(oldEPos) && Math.floor(ePos) >= TOTAL_LAPS) {
-                    endGame("YOU LOSE...");
-                }
+                updatePhysics();
             }
 
-            updateCar(playerCar, pPos % 1);
-            updateCar(enemyCar, (ePos % 1), 2); // CPUは外側
+            drawCar(e, '#ff4444', 15); // CPU
+            drawCar(p, '#00ff88', 0);   // Player
 
-            // カメラ演出
-            const camTarget = new THREE.Vector3(playerCar.position.x, 15, playerCar.position.z + 20);
-            camera.position.lerp(camTarget, 0.05);
-            camera.lookAt(playerCar.position);
-
-            // UI
-            document.getElementById('speed-bar').style.width = Math.min((pSpeed / CURVE_LIMIT) * 100, 100) + "%";
-
-            renderer.render(scene, camera);
+            updateUI();
         }
 
-        function updateCar(car, t, offset = 0) {
-            const pt = curve.getPoint(t);
-            const tangent = curve.getTangent(t);
-            // オフセット（コースの幅）を計算
-            const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-            car.position.copy(pt).add(normal.multiplyScalar(offset));
-            car.rotation.y = Math.atan2(tangent.x, tangent.z);
+        // --- ★ここが新しい物理ロジック★ ---
+        function updatePhysics() {
+            if (p.isOut) {
+                // コースアウト後の挙動（滑って止まる）
+                p.speed *= 0.95;
+                p.pos += p.speed;
+                p.slipAngle += p.speed * 5; // スピン回転
+                return;
+            }
+
+            // 1. 加速ロジック
+            if (isButtonPressed) {
+                // トルク方式：速度が遅いほど加速が強く、速いほど鈍くなる
+                // (最高速 - 現在速度) の比率をかけて加速量を決める
+                const speedRatio = (P_PHYSICS.max_speed_cap - p.speed) / P_PHYSICS.max_speed_cap;
+                // 負数にならないように補正（最高速を超えないように）
+                const accel = P_PHYSICS.accel_torque * Math.max(0, speedRatio);
+                p.speed += accel;
+            }
+
+            // 2. 減速ロジック（自然減速）
+            // 空気抵抗（速度の2乗に比例して抵抗が増えるイメージの簡易版）
+            p.speed *= P_PHYSICS.drag_coeff; 
+            // 基礎摩擦（超低速時でも必ず止まるように）
+            p.speed = Math.max(0, p.speed - P_PHYSICS.friction_base);
+
+            const oldPos = p.pos;
+            p.pos += p.speed;
+
+            // 3. ラップ判定
+            if (Math.floor(p.pos) > Math.floor(oldPos)) {
+                p.lap++;
+                if (p.lap > TOTAL_LAPS) endGame("YOU WIN!");
+            }
+
+            // 4. 横G（遠心力）判定とコースアウト
+            const curvature = getCurvature(p.pos);
+            // 横G = 速度^2 × 曲率 (簡易式)
+            // 2Dでは曲率の変化が激しいので、速度の影響を強めに設定
+            const lateralG = (p.speed * p.speed) * curvature * 5000; 
+            
+            p.currentG = lateralG; // UI表示用
+
+            if (lateralG > P_PHYSICS.g_limit) {
+                p.isOut = true;
+                setTimeout(() => endGame("COURSE OUT!"), 1000);
+            }
+
+            // --- CPU移動 ---
+            const oldEPos = e.pos;
+            e.pos += CPU_SPEED;
+            if (Math.floor(e.pos) > Math.floor(oldEPos)) {
+                e.lap++;
+                if (e.lap > TOTAL_LAPS) {
+                    e.finished = true;
+                    if(!p.isOut) endGame("YOU LOSE...");
+                }
+            }
+        }
+
+        function drawTrack() {
+            // 地面（路面）
+            ctx.beginPath();
+            for (let t = 0; t <= 1.01; t += 0.01) {
+                const pt = getTrackPoint(t);
+                if (t === 0) ctx.moveTo(pt.x, pt.y);
+                else ctx.lineTo(pt.x, pt.y);
+            }
+            ctx.lineWidth = 20;
+            ctx.strokeStyle = '#444'; // アスファルト
+            ctx.stroke();
+
+            // ガイドスロット（溝）
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#111';
+            ctx.stroke();
+
+            // スタートライン
+            const s = getTrackPoint(0);
+            const e = getTrackPoint(0.001);
+            const ang = Math.atan2(e.y - s.y, e.x - s.x);
+            ctx.save();
+            ctx.translate(s.x, s.y);
+            ctx.rotate(ang + Math.PI/2);
+            ctx.fillStyle = "white";
+            // チェッカーフラグ風の模様
+            for(let i=0; i<4; i++) {
+                for(let j=0; j<2; j++) {
+                    if((i+j)%2===0) ctx.fillRect(-10 + i*5, -5 + j*5, 5, 5);
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawCar(car, color, offset) {
+            const t = car.pos % 1;
+            const pt = getTrackPoint(t, offset);
+            
+            // 次の点を見て向きを計算
+            const nextPt = getTrackPoint(t + 0.01, offset);
+            const angle = Math.atan2(nextPt.y - pt.y, nextPt.x - pt.x);
+
+            ctx.save();
+            ctx.translate(pt.x, pt.y);
+            
+            // コースアウト時はスピンさせる
+            if (car === p && p.isOut) {
+                ctx.rotate(angle + p.slipAngle);
+                // 滑ってる跡（簡易）
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fillRect(-10, 5, 20, 2);
+                ctx.fillRect(-10, -7, 20, 2);
+            } else {
+                ctx.rotate(angle);
+            }
+
+            // 車体描画
+            ctx.fillStyle = color;
+            ctx.fillRect(-8, -5, 16, 10); // 車体本体
+            
+            // テイルランプ（ブレーキ時や減速時）
+            ctx.fillStyle = (car === p && !isButtonPressed && p.speed > 0) ? '#ffaaaa' : '#880000';
+            ctx.fillRect(-8, -5, 2, 3);
+            ctx.fillRect(-8, 2, 2, 3);
+            
+            // ヘッドライト
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(6, -4, 2, 2);
+            ctx.fillRect(6, 2, 2, 2);
+
+            ctx.restore();
+        }
+
+        function updateUI() {
+            if(p.isOut) return;
+            document.getElementById('lap-text').innerText = `${Math.min(p.lap, TOTAL_LAPS)} / ${TOTAL_LAPS}`;
+            
+            // 速度ゲージ (最高速に対する比率)
+            const speedPerc = (p.speed / P_PHYSICS.max_speed_cap) * 100;
+            const speedBar = document.getElementById('speed-bar');
+            speedBar.style.width = speedPerc + '%';
+            
+            // 速度に応じて色を変える
+            if(speedPerc > 80) speedBar.style.background = 'red';
+            else if(speedPerc > 50) speedBar.style.background = 'yellow';
+            else speedBar.style.background = 'lime';
+
+            // 横Gゲージ
+            const gPerc = (p.currentG / P_PHYSICS.g_limit) * 50; // センターから左右50%ずつ
+            // 限界に近づくと赤くなるエリア
+            const gPointer = document.getElementById('g-pointer');
+            gPointer.style.left = (50 + gPerc) + '%';
+            if(Math.abs(gPerc) > 40) gPointer.style.background = 'red';
+            else gPointer.style.background = 'white';
         }
 
         function endGame(text) {
             gameState = 'FINISHED';
             const msg = document.getElementById('msg');
-            msg.innerHTML = text + "<br><span style='font-size:20px'>Tap to Restart</span>";
+            msg.innerHTML = text + "<br><span style='font-size:16px'>Tap to Restart</span>";
             msg.style.display = "block";
+            msg.style.color = text.includes('WIN') ? 'gold' : 'white';
         }
 
         animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
