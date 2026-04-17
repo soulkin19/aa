@@ -3,306 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>2D Slot Car Physics</title>
+    <title>Slot Car Pro Racing</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; touch-action: none; color: white; }
+        body { margin: 0; background: #1a1a1a; color: #fff; font-family: sans-serif; overflow: hidden; touch-action: none; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; z-index: 10; text-shadow: 2px 2px #000; }
-        .label { font-size: 12px; color: #aaa; }
-        .value { font-size: 20px; margin-bottom: 8px; }
-        #speed-gauge { width: 120px; height: 8px; background: #444; border: 1px solid #fff; }
-        #speed-bar { width: 0%; height: 100%; background: lime; transition: background 0.1s; }
-        #g-gauge { width: 120px; height: 8px; background: #444; border: 1px solid #fff; margin-top: 4px; position: relative;}
-        #g-pointer { position: absolute; top:0; left: 50%; width: 4px; height: 100%; background: white; transform: translateX(-50%); }
-        
-        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; display: none; text-align: center; z-index: 20; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; width: 80%; border: 2px solid white;}
+        #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; }
+        .bar-bg { width: 150px; height: 12px; background: #333; margin-bottom: 10px; border: 1px solid #555; }
+        #speed-bar { width: 0%; height: 100%; background: linear-gradient(to right, #0f0, #ff0, #f00); }
+        #grip-bar { width: 100%; height: 100%; background: #0088ff; }
+        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 30px; text-align: center; display: none; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <div class="label">LAP</div><div class="value" id="lap-text">1 / 3</div>
-        <div class="label">SPEED</div>
-        <div id="speed-gauge"><div id="speed-bar"></div></div>
-        <div class="label">LATERAL G (横G)</div>
-        <div id="g-gauge"><div id="g-pointer"></div></div>
+        <div>SPEED</div><div class="bar-bg"><div id="speed-bar"></div></div>
+        <div>GRIP</div><div class="bar-bg"><div id="grip-bar"></div></div>
+        <div id="status">LAP: 1/3</div>
     </div>
     <div id="msg"></div>
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="c"></canvas>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let width, height, centerX, centerY, trackScale;
+<script>
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+let w, h, isDown = false, lap = 1, finished = false;
+let p = { pos: 0, v: 0, grip: 1, out: false };
+let e = { pos: 0, v: 0.008 };
 
-        // --- ゲーム設定 ---
-        const TOTAL_LAPS = 3;
-        let gameState = 'RACING'; // RACING, FINISHED
+function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize); resize();
 
-        // --- ★新規・速度物理パラメータ★ ---
-        const P_PHYSICS = {
-            accel_torque: 0.0015,     // 根本的な加速力（トルク）
-            max_speed_cap: 0.04,     // 理論上の最高速
-            drag_coeff: 0.96,        // 空気抵抗（毎フレーム残る速度の割合。低いと失速しやすい）
-            friction_base: 0.0001,   // 基礎摩擦（常に減速させる力）
-            g_limit: 0.18            // 横Gの限界点（これを超えるとコースアウト）
-        };
+// 複雑なサーキットコース（制御点）
+const points = [
+    {x: 0.2, y: 0.2}, {x: 0.8, y: 0.2}, {x: 0.9, y: 0.5}, 
+    {x: 0.7, y: 0.8}, {x: 0.3, y: 0.8}, {x: 0.1, y: 0.5}
+];
 
-        const CPU_SPEED = 0.008; // CPUは一定速度
+function getPos(t) {
+    t = (t % 1) * points.length;
+    let i = Math.floor(t), f = t - i;
+    let p1 = points[i % points.length], p2 = points[(i + 1) % points.length];
+    return { x: (p1.x + (p2.x - p1.x) * f) * w, y: (p1.y + (p2.y - p1.y) * f) * h };
+}
 
-        // プレイヤー状態
-        let p = {
-            pos: 0,          // コース上の位置 (0.0 ～ 1.0)
-            speed: 0,        // 現在速度
-            lap: 1,
-            isOut: false,
-            slipAngle: 0     // コースアウト時の演出用
-        };
+window.addEventListener('mousedown', () => isDown = true);
+window.addEventListener('mouseup', () => isDown = false);
+window.addEventListener('touchstart', () => isDown = true);
+window.addEventListener('touchend', () => isDown = false);
 
-        // CPU状態
-        let e = { pos: 0, lap: 1, finished: false };
-
-        let isButtonPressed = false;
-
-        // コース形状定義（2D画面に合わせた楕円ベースのサーキット）
-        function getTrackPoint(t, offset = 0) {
-            t = t % 1;
-            const angle = t * Math.PI * 2;
-            
-            // 楕円を少し歪ませてサーキットっぽくする
-            let rX = (width * 0.4) * (1 + Math.sin(angle * 2) * 0.1);
-            let rY = (height * 0.3);
-
-            // コースの内側・外側のオフセット
-            rX += offset;
-            rY += offset;
-
-            return {
-                x: centerX + Math.cos(angle) * rX,
-                y: centerY + Math.sin(angle) * rY,
-                angle: angle
-            };
+function loop() {
+    if(!finished) {
+        // 物理演算
+        if(p.out) p.v *= 0.95;
+        else {
+            if(isDown) p.v += 0.001 * p.grip;
+            p.v += (0.002 - p.v) * 0.02; // 空気抵抗
+            p.grip = Math.min(1, p.grip + 0.005); // グリップ回復
+        }
+        
+        // コーナー判定（カーブがきつい場所で速度超過するとアウト）
+        if(p.v > 0.025 && Math.random() < 0.02) {
+            p.grip -= 0.1;
+            if(p.grip < 0.3) p.out = true;
         }
 
-        // ある地点の曲率（カーブのきつさ）を簡易取得
-        function getCurvature(t) {
-            const delta = 0.001;
-            const p1 = getTrackPoint(t - delta);
-            const p2 = getTrackPoint(t);
-            const p3 = getTrackPoint(t + delta);
+        p.pos += p.v;
+        e.pos += e.v + (Math.random()-0.5)*0.001; // CPUは揺らぎあり
+        
+        if(Math.floor(p.pos) > lap-1) { lap++; document.getElementById('status').innerText = `LAP: ${lap}/3`; }
+        if(lap > 3) { finished = true; showMsg("WINNER!"); }
+    }
 
-            // 2つのベクトルの角度差から曲率を求める
-            const v1 = { x: p2.x - p1.x, y: p2.y - p1.y };
-            const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
-            
-            const a1 = Math.atan2(v1.y, v1.x);
-            const a2 = Math.atan2(v2.y, v2.x);
-            
-            let diff = a2 - a1;
-            // 角度の不連続点を補正
-            if (diff > Math.PI) diff -= Math.PI * 2;
-            if (diff < -Math.PI) diff += Math.PI * 2;
+    // 描画
+    ctx.clearRect(0,0,w,h);
+    // コース
+    ctx.beginPath(); ctx.lineWidth = 40; ctx.strokeStyle = '#333';
+    for(let t=0; t<=1; t+=0.01) { let p = getPos(t); if(t==0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
+    ctx.stroke();
 
-            return Math.abs(diff); // 値が大きいほど急カーブ
-        }
+    drawCar(p.pos, '#0f0', 0);
+    drawCar(e.pos, '#f00', 15);
+    
+    document.getElementById('speed-bar').style.width = (p.v * 2000) + "%";
+    document.getElementById('grip-bar').style.width = (p.grip * 100) + "%";
+    requestAnimationFrame(loop);
+}
 
-        function resize() {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-            centerX = width / 2;
-            centerY = height / 2;
-        }
-        window.addEventListener('resize', resize);
-        resize();
+function drawCar(pos, color, offset) {
+    let p = getPos(pos);
+    ctx.fillStyle = color;
+    ctx.fillRect(p.x-10, p.y-5, 20, 10);
+}
 
-        // 入力設定
-        const inputStart = () => { if(gameState === 'FINISHED') location.reload(); isButtonPressed = true; };
-        const inputEnd = () => { isButtonPressed = false; };
-        window.addEventListener('touchstart', (e) => { e.preventDefault(); inputStart(); }, {passive: false});
-        window.addEventListener('touchend', inputEnd);
-        window.addEventListener('mousedown', inputStart);
-        window.addEventListener('mouseup', inputEnd);
+function showMsg(m) {
+    let msg = document.getElementById('msg');
+    msg.innerText = m; msg.style.display = 'block';
+}
 
-        function animate() {
-            requestAnimationFrame(animate);
-            ctx.clearRect(0, 0, width, height);
-
-            drawTrack();
-
-            if (gameState === 'RACING') {
-                updatePhysics();
-            }
-
-            drawCar(e, '#ff4444', 15); // CPU
-            drawCar(p, '#00ff88', 0);   // Player
-
-            updateUI();
-        }
-
-        // --- ★ここが新しい物理ロジック★ ---
-        function updatePhysics() {
-            if (p.isOut) {
-                // コースアウト後の挙動（滑って止まる）
-                p.speed *= 0.95;
-                p.pos += p.speed;
-                p.slipAngle += p.speed * 5; // スピン回転
-                return;
-            }
-
-            // 1. 加速ロジック
-            if (isButtonPressed) {
-                // トルク方式：速度が遅いほど加速が強く、速いほど鈍くなる
-                // (最高速 - 現在速度) の比率をかけて加速量を決める
-                const speedRatio = (P_PHYSICS.max_speed_cap - p.speed) / P_PHYSICS.max_speed_cap;
-                // 負数にならないように補正（最高速を超えないように）
-                const accel = P_PHYSICS.accel_torque * Math.max(0, speedRatio);
-                p.speed += accel;
-            }
-
-            // 2. 減速ロジック（自然減速）
-            // 空気抵抗（速度の2乗に比例して抵抗が増えるイメージの簡易版）
-            p.speed *= P_PHYSICS.drag_coeff; 
-            // 基礎摩擦（超低速時でも必ず止まるように）
-            p.speed = Math.max(0, p.speed - P_PHYSICS.friction_base);
-
-            const oldPos = p.pos;
-            p.pos += p.speed;
-
-            // 3. ラップ判定
-            if (Math.floor(p.pos) > Math.floor(oldPos)) {
-                p.lap++;
-                if (p.lap > TOTAL_LAPS) endGame("YOU WIN!");
-            }
-
-            // 4. 横G（遠心力）判定とコースアウト
-            const curvature = getCurvature(p.pos);
-            // 横G = 速度^2 × 曲率 (簡易式)
-            // 2Dでは曲率の変化が激しいので、速度の影響を強めに設定
-            const lateralG = (p.speed * p.speed) * curvature * 5000; 
-            
-            p.currentG = lateralG; // UI表示用
-
-            if (lateralG > P_PHYSICS.g_limit) {
-                p.isOut = true;
-                setTimeout(() => endGame("COURSE OUT!"), 1000);
-            }
-
-            // --- CPU移動 ---
-            const oldEPos = e.pos;
-            e.pos += CPU_SPEED;
-            if (Math.floor(e.pos) > Math.floor(oldEPos)) {
-                e.lap++;
-                if (e.lap > TOTAL_LAPS) {
-                    e.finished = true;
-                    if(!p.isOut) endGame("YOU LOSE...");
-                }
-            }
-        }
-
-        function drawTrack() {
-            // 地面（路面）
-            ctx.beginPath();
-            for (let t = 0; t <= 1.01; t += 0.01) {
-                const pt = getTrackPoint(t);
-                if (t === 0) ctx.moveTo(pt.x, pt.y);
-                else ctx.lineTo(pt.x, pt.y);
-            }
-            ctx.lineWidth = 20;
-            ctx.strokeStyle = '#444'; // アスファルト
-            ctx.stroke();
-
-            // ガイドスロット（溝）
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#111';
-            ctx.stroke();
-
-            // スタートライン
-            const s = getTrackPoint(0);
-            const e = getTrackPoint(0.001);
-            const ang = Math.atan2(e.y - s.y, e.x - s.x);
-            ctx.save();
-            ctx.translate(s.x, s.y);
-            ctx.rotate(ang + Math.PI/2);
-            ctx.fillStyle = "white";
-            // チェッカーフラグ風の模様
-            for(let i=0; i<4; i++) {
-                for(let j=0; j<2; j++) {
-                    if((i+j)%2===0) ctx.fillRect(-10 + i*5, -5 + j*5, 5, 5);
-                }
-            }
-            ctx.restore();
-        }
-
-        function drawCar(car, color, offset) {
-            const t = car.pos % 1;
-            const pt = getTrackPoint(t, offset);
-            
-            // 次の点を見て向きを計算
-            const nextPt = getTrackPoint(t + 0.01, offset);
-            const angle = Math.atan2(nextPt.y - pt.y, nextPt.x - pt.x);
-
-            ctx.save();
-            ctx.translate(pt.x, pt.y);
-            
-            // コースアウト時はスピンさせる
-            if (car === p && p.isOut) {
-                ctx.rotate(angle + p.slipAngle);
-                // 滑ってる跡（簡易）
-                ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                ctx.fillRect(-10, 5, 20, 2);
-                ctx.fillRect(-10, -7, 20, 2);
-            } else {
-                ctx.rotate(angle);
-            }
-
-            // 車体描画
-            ctx.fillStyle = color;
-            ctx.fillRect(-8, -5, 16, 10); // 車体本体
-            
-            // テイルランプ（ブレーキ時や減速時）
-            ctx.fillStyle = (car === p && !isButtonPressed && p.speed > 0) ? '#ffaaaa' : '#880000';
-            ctx.fillRect(-8, -5, 2, 3);
-            ctx.fillRect(-8, 2, 2, 3);
-            
-            // ヘッドライト
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(6, -4, 2, 2);
-            ctx.fillRect(6, 2, 2, 2);
-
-            ctx.restore();
-        }
-
-        function updateUI() {
-            if(p.isOut) return;
-            document.getElementById('lap-text').innerText = `${Math.min(p.lap, TOTAL_LAPS)} / ${TOTAL_LAPS}`;
-            
-            // 速度ゲージ (最高速に対する比率)
-            const speedPerc = (p.speed / P_PHYSICS.max_speed_cap) * 100;
-            const speedBar = document.getElementById('speed-bar');
-            speedBar.style.width = speedPerc + '%';
-            
-            // 速度に応じて色を変える
-            if(speedPerc > 80) speedBar.style.background = 'red';
-            else if(speedPerc > 50) speedBar.style.background = 'yellow';
-            else speedBar.style.background = 'lime';
-
-            // 横Gゲージ
-            const gPerc = (p.currentG / P_PHYSICS.g_limit) * 50; // センターから左右50%ずつ
-            // 限界に近づくと赤くなるエリア
-            const gPointer = document.getElementById('g-pointer');
-            gPointer.style.left = (50 + gPerc) + '%';
-            if(Math.abs(gPerc) > 40) gPointer.style.background = 'red';
-            else gPointer.style.background = 'white';
-        }
-
-        function endGame(text) {
-            gameState = 'FINISHED';
-            const msg = document.getElementById('msg');
-            msg.innerHTML = text + "<br><span style='font-size:16px'>Tap to Restart</span>";
-            msg.style.display = "block";
-            msg.style.color = text.includes('WIN') ? 'gold' : 'white';
-        }
-
-        animate();
-    </script>
+loop();
+</script>
 </body>
 </html>
