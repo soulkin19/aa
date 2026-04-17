@@ -3,85 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>花粉症サバイバル</title>
+    <title>花粉症サバイバル・カレンダー</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background: #eef9ff; /* 春っぽい空色 */
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            touch-action: none; /* スマホのスクロール防止 */
-        }
-        canvas {
-            display: block;
-        }
+        body { margin: 0; overflow: hidden; background: #eef9ff; font-family: sans-serif; touch-action: none; }
+        canvas { display: block; }
         #ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            pointer-events: none;
-            user-select: none;
+            position: absolute; top: 15px; left: 15px; pointer-events: none;
+            background: rgba(255,255,255,0.7); padding: 10px; border-radius: 10px;
         }
-        .label {
-            font-size: 18px;
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 5px;
-        }
-        #gauge-container {
-            width: 200px;
-            height: 20px;
-            background: #ccc;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        #gauge {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, #ffeb3b, #f44336);
-            transition: width 0.1s;
-        }
-        #score {
-            font-size: 24px;
-            color: #333;
-            margin-top: 10px;
-        }
+        #gauge-bar { width: 200px; height: 15px; background: #ddd; border-radius: 5px; overflow: hidden; }
+        #gauge { width: 0%; height: 100%; background: linear-gradient(90deg, #ffeb3b, #f44336); }
+        .info { font-size: 16px; font-weight: bold; color: #333; margin: 2px 0; }
+        #month-display { font-size: 24px; color: #2c3e50; }
         #msg {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            display: none;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; display: none; background: white; padding: 30px;
+            border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
-            cursor: pointer;
-            background: #4caf50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
+        button { padding: 12px 24px; font-size: 18px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <div class="label">くしゃみゲージ</div>
-        <div id="gauge-container"><div id="gauge"></div></div>
-        <div id="score">Score: 0</div>
+        <div id="month-display">1月</div>
+        <div class="info">くしゃみ限界</div>
+        <div id="gauge-bar"><div id="gauge"></div></div>
+        <div id="score" class="info">Score: 0</div>
     </div>
 
     <div id="msg">
-        <h1 id="status-text">Game Over!</h1>
+        <h1 id="status-text">鼻が爆発しました</h1>
         <p id="final-score"></p>
-        <button onclick="resetGame()">再挑戦</button>
+        <button onclick="resetGame()">来シーズンへ挑む</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -90,53 +44,60 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const gauge = document.getElementById('gauge');
-    const scoreElement = document.getElementById('score');
+    const monthElem = document.getElementById('month-display');
+    const scoreElem = document.getElementById('score');
     const msgBox = document.getElementById('msg');
-    const finalScoreElement = document.getElementById('final-score');
 
-    let player, pollens, masks, score, sneezeLevel, gameActive;
+    let player, pollens, items, score, sneezeLevel, gameActive, currentMonth, frameCount;
     let pointer = { x: 0, y: 0 };
+    let powerUpTimer = 0;
 
-    // 初期化
     function init() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        player = { x: canvas.width / 2, y: canvas.height / 2, r: 20 };
+        player = { x: canvas.width / 2, y: canvas.height / 2, r: 20, speed: 8, baseSpeed: 8 };
         pollens = [];
-        masks = [];
+        items = []; // マスク, 目薬, 清浄機
         score = 0;
         sneezeLevel = 0;
+        currentMonth = 1;
+        frameCount = 0;
         gameActive = true;
         msgBox.style.display = 'none';
         pointer.x = player.x;
         pointer.y = player.y;
     }
 
-    // 入力設定
     window.addEventListener('mousemove', e => { pointer.x = e.clientX; pointer.y = e.clientY; });
     window.addEventListener('touchmove', e => {
+        e.preventDefault();
         pointer.x = e.touches[0].clientX;
         pointer.y = e.touches[0].clientY;
     }, { passive: false });
 
-    function spawnPollen() {
-        if (pollens.length < 50 + score / 100) {
+    function spawnEntity() {
+        // 月ごとの難易度調整
+        let difficulty = currentMonth === 13 ? 15 : currentMonth; // 13月以降はエンドレス強化
+        
+        // 花粉の生成
+        if (pollens.length < 20 + (difficulty * 5)) {
             pollens.push({
                 x: Math.random() * canvas.width,
                 y: -20,
                 vx: (Math.random() - 0.5) * 2,
-                vy: 2 + Math.random() * 3,
+                vy: 2 + (difficulty * 0.5) + Math.random() * 2,
                 r: 5 + Math.random() * 5
             });
         }
-    }
 
-    function spawnMask() {
-        if (Math.random() < 0.01) {
-            masks.push({
+        // アイテム生成 (レア)
+        if (Math.random() < 0.015) {
+            const types = ['mask', 'eyedrops', 'purifier'];
+            items.push({
                 x: Math.random() * canvas.width,
                 y: -30,
-                r: 15
+                type: types[Math.floor(Math.random() * types.length)],
+                r: 18
             });
         }
     }
@@ -144,40 +105,65 @@
     function update() {
         if (!gameActive) return;
 
-        // 自機の追従
-        player.x += (pointer.x - player.x) * 0.15;
-        player.y += (pointer.y - player.y) * 0.15;
+        frameCount++;
+        
+        // 月の進行 (約10秒 = 600フレーム)
+        if (currentMonth <= 12 && frameCount % 600 === 0) {
+            currentMonth++;
+            if (currentMonth > 12) {
+                monthElem.innerText = "終焉の13月 (Endless)";
+                monthElem.style.color = "red";
+            } else {
+                monthElem.innerText = currentMonth + "月";
+            }
+        }
 
-        // 花粉の移動と判定
+        // 自機の移動 (ワープ防止ロジック)
+        const dx = pointer.x - player.x;
+        const dy = pointer.y - player.y;
+        const dist = Math.hypot(dx, dy);
+        
+        if (dist > 5) {
+            const moveDist = Math.min(dist, player.speed);
+            player.x += (dx / dist) * moveDist;
+            player.y += (dy / dist) * moveDist;
+        }
+
+        // パワーアップ（目薬）処理
+        if (powerUpTimer > 0) {
+            powerUpTimer--;
+            player.speed = player.baseSpeed * 1.5;
+        } else {
+            player.speed = player.baseSpeed;
+            sneezeLevel += 0.05 + (currentMonth * 0.01); // 徐々に悪化
+        }
+
+        // 花粉判定
         pollens.forEach((p, i) => {
             p.y += p.vy;
-            p.x += Math.sin(p.y / 20) * 2; // ふわふわさせる
-
-            const dist = Math.hypot(player.x - p.x, player.y - p.y);
-            if (dist < player.r + p.r) {
-                sneezeLevel += 5;
+            p.x += Math.sin(p.y / 30) * 2;
+            if (Math.hypot(player.x - p.x, player.y - p.y) < player.r + p.r) {
+                sneezeLevel += 8;
                 pollens.splice(i, 1);
             }
             if (p.y > canvas.height + 20) pollens.splice(i, 1);
         });
 
-        // マスクの移動と判定
-        masks.forEach((m, i) => {
-            m.y += 2;
-            const dist = Math.hypot(player.x - m.x, player.y - m.y);
-            if (dist < player.r + m.r) {
-                sneezeLevel = Math.max(0, sneezeLevel - 30);
-                masks.splice(i, 1);
+        // アイテム判定
+        items.forEach((it, i) => {
+            it.y += 3;
+            if (Math.hypot(player.x - it.x, player.y - it.y) < player.r + it.r) {
+                if (it.type === 'mask') sneezeLevel = Math.max(0, sneezeLevel - 25);
+                if (it.type === 'eyedrops') powerUpTimer = 300; // 5秒
+                if (it.type === 'purifier') pollens = []; 
+                items.splice(i, 1);
             }
-            if (m.y > canvas.height + 30) masks.splice(i, 1);
+            if (it.y > canvas.height + 30) items.splice(i, 1);
         });
 
-        sneezeLevel += 0.05; // 自然増
         score++;
-
-        // UI更新
-        gauge.style.width = sneezeLevel + '%';
-        scoreElement.innerText = `Score: ${Math.floor(score / 10)}`;
+        gauge.style.width = Math.min(100, sneezeLevel) + '%';
+        scoreElem.innerText = `Score: ${Math.floor(score / 10)}`;
 
         if (sneezeLevel >= 100) gameOver();
     }
@@ -185,64 +171,47 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // マスク描画
-        masks.forEach(m => {
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(m.x - 15, m.y - 10, 30, 20);
-            ctx.strokeStyle = '#999';
-            ctx.strokeRect(m.x - 15, m.y - 10, 30, 20);
+        // アイテム描画
+        items.forEach(it => {
             ctx.beginPath();
-            ctx.moveTo(m.x - 15, m.y); ctx.lineTo(m.x - 25, m.y - 5);
-            ctx.moveTo(m.x + 15, m.y); ctx.lineTo(m.x + 25, m.y - 5);
-            ctx.stroke();
+            ctx.arc(it.x, it.y, it.r, 0, Math.PI*2);
+            if(it.type === 'mask') ctx.fillStyle = '#fff';
+            if(it.type === 'eyedrops') ctx.fillStyle = '#3498db';
+            if(it.type === 'purifier') ctx.fillStyle = '#2ecc71';
+            ctx.fill();
+            ctx.strokeStyle = '#333'; ctx.stroke();
+            // アイコン代わりの文字
+            ctx.fillStyle = '#000'; ctx.font = '12px Arial'; ctx.textAlign = 'center';
+            let label = it.type === 'mask' ? 'MASK' : it.type === 'eyedrops' ? 'DROP' : 'CLEAN';
+            ctx.fillText(label, it.x, it.y + 5);
         });
 
-        // 自機（人間）描画
+        // 自機 (目薬使用中は青く光る)
         ctx.beginPath();
         ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffdbac'; // 肌色
+        ctx.fillStyle = powerUpTimer > 0 ? '#a0e7ff' : '#ffdbac';
         ctx.fill();
-        ctx.stroke();
-        // 目
-        ctx.fillStyle = '#333';
-        ctx.beginPath(); ctx.arc(player.x - 7, player.y - 5, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(player.x + 7, player.y - 5, 2, 0, Math.PI * 2); ctx.fill();
-        // 口（ダメージで変わる）
-        ctx.strokeStyle = '#333';
-        ctx.beginPath();
-        if(sneezeLevel < 70) ctx.arc(player.x, player.y + 5, 5, 0, Math.PI);
-        else ctx.arc(player.x, player.y + 10, 5, Math.PI, 0); // への字
-        ctx.stroke();
-
-        // 花粉描画
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        
+        // 花粉
         pollens.forEach(p => {
             ctx.fillStyle = '#ffd700';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fill();
-            // 花粉のトゲ
-            for(let j=0; j<8; j++){
-                let ang = j * (Math.PI/4);
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x + Math.cos(ang)*(p.r+3), p.y + Math.sin(ang)*(p.r+3));
-            }
-            ctx.strokeStyle = '#daa520';
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 1; ctx.stroke();
         });
     }
 
     function loop() {
         update();
         draw();
-        spawnPollen();
-        spawnMask();
+        spawnEntity();
         if (gameActive) requestAnimationFrame(loop);
     }
 
     function gameOver() {
         gameActive = false;
         msgBox.style.display = 'block';
-        finalScoreElement.innerText = `最終スコア: ${Math.floor(score / 10)}`;
+        document.getElementById('final-score').innerText = `到達：${currentMonth > 12 ? '終焉' : currentMonth + '月'} / スコア：${Math.floor(score / 10)}`;
     }
 
     function resetGame() {
@@ -250,10 +219,7 @@
         loop();
     }
 
-    window.addEventListener('resize', () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    });
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 
     init();
     loop();
